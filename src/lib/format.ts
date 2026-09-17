@@ -179,6 +179,22 @@ export function buildUrl(
   return `${scheme}://${auth}${site.host}${port}${path}`
 }
 
+export function uniqueName(name: string, exists: (candidate: string) => boolean): string {
+  const dot = name.lastIndexOf('.')
+  const stem = dot > 0 ? name.slice(0, dot) : name
+  const extension = dot > 0 ? name.slice(dot) : ''
+
+  for (let n = 1; n < 10000; n += 1) {
+    const candidate = `${stem} (${n})${extension}`
+
+    if (!exists(candidate)) {
+      return candidate
+    }
+  }
+
+  return `${stem} (${crypto.randomUUID()})${extension}`
+}
+
 export function normalizeLocal(path: string): string {
   return path.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase()
 }

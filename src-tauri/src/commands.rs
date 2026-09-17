@@ -1,4 +1,6 @@
 use crate::askpass::PromptBroker;
+use crate::clipboard::{self, ClipboardFiles};
+use crate::drag_out::{self, DeferredDownload, DragJob, DragOutResult};
 use crate::edit::EditManager;
 use crate::error::{VError, VResult};
 use crate::icons::IconCache;
@@ -10,7 +12,9 @@ use crate::session::{ConnectRequest, SessionInfo, SessionManager};
 use crate::settings::{AppSettings, SettingsStore};
 use crate::sites::{RecentConnection, SiteConfig, SiteStore, SiteTree};
 use crate::sync::{self, DiffEntry, SyncRequest};
-use crate::transfer::{ConflictAnswer, QueueRequest, QueueSnapshot, QueueStats, TransferQueue};
+use crate::transfer::{
+  ConflictAnswer, ConflictPolicy, QueueRequest, QueueSnapshot, QueueStats, TransferQueue,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::State;
@@ -66,6 +70,24 @@ pub struct LinkTarget {
   pub target: String,
   pub is_dir: bool,
 }
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CopyItem {
+  pub source: String,
+  pub destination: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DragOutRequest {
+  #[serde(default)]
+  pub local_paths: Vec<String>,
+  #[serde(default)]
+  pub downloads: Vec<QueueRequest>,
+}
+
+const DRAG_OUT_PRIORITY: i32 = 20;
 
 #[tauri::command]
 pub async fn system_info(app: tauri::AppHandle) -> SystemInfo {
@@ -407,6 +429,81 @@ pub fn local_resolve_link(path: String) -> VResult<LinkTarget> {
     .map(|m| m.is_dir())
     .unwrap_or(false);
   Ok(LinkTarget { target, is_dir })
+}
+
+#[tauri::command]
+pub async fn local_copy(items: Vec<CopyItem>, overwrite: bool) -> VResult<()> {
+  tokio::task::spawn_blocking(move || {
+    for item in items {
+      local_fs::copy_tree(&item.source, &item.destination, overwrite)?;
+    }
+    Ok(())
+  })
+  .await
+  .map_err(|e| VError::Other(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn clipboard_write(
+  text: String,
+  files: Option<Vec<String>>,
+  token: String,
+) -> VResult<u32> {
+  tokio::task::spawn_blocking(move || clipboard::write(&text, &files.unwrap_or_default(), &token))
+    .await
+    .map_err(|e| VError::Other(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn clipboard_read_files() -> VResult<ClipboardFiles> {
+  tokio::task::spawn_blocking(clipboard::read_files)
+    .await
+    .map_err(|e| VError::Other(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn drag_out(state: App<'_>, request: DragOutRequest) -> VResult<DragOutResult> {
+  if request.downloads.is_empty() {
+    if request.local_paths.is_empty() {
+      return Err(VError::Other("nothing to drag".into()));
+    }
+    return drag_out::start(DragJob {
+      paths: request.local_paths.into_iter().map(Into::into).collect(),
+      allow_move: true,
+      allow_link: true,
+      prefer_move: false,
+      deferred: None,
+    })
+    .await;
+  }
+  let temp_dir = crate::paths::new_drag_temp_dir()?;
+  let batch = uuid::Uuid::new_v4().to_string();
+  let mut paths = Vec::with_capacity(request.downloads.len());
+  let mut downloads = Vec::with_capacity(request.downloads.len());
+  for mut download in request.downloads {
+    state.sessions.get(&download.session_id)?;
+    let name = protocol::basename(&download.remote_path);
+    let local_path = temp_dir.join(&name);
+    paths.push(local_path.clone());
+    download.local_path = local_path.to_string_lossy().into_owned();
+    download.priority = DRAG_OUT_PRIORITY;
+    download.conflict_policy = Some(ConflictPolicy::Overwrite);
+    download.start_paused = false;
+    download.batch = Some(batch.clone());
+    downloads.push(download);
+  }
+  drag_out::start(DragJob {
+    paths,
+    allow_move: true,
+    allow_link: false,
+    prefer_move: true,
+    deferred: Some(DeferredDownload {
+      queue: state.queue.clone(),
+      batch,
+      requests: downloads,
+    }),
+  })
+  .await
 }
 
 #[tauri::command]

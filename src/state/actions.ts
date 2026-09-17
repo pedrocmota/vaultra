@@ -1,4 +1,5 @@
 import {listen} from '@tauri-apps/api/event'
+import {getCurrentWindow} from '@tauri-apps/api/window'
 import {open as openFileDialog} from '@tauri-apps/plugin-dialog'
 import {
   api,
@@ -24,9 +25,12 @@ import {
   buildUrl,
   joinLocal,
   joinRemote,
+  normalizeLocal,
+  parentLocal,
   parentRemote,
   relativeLocal,
-  relativeRemote
+  relativeRemote,
+  uniqueName
 } from '@/lib/format'
 import {selectionAfterNavigation} from './selectionMemory'
 import {activeTab, createTab, t, tabById, useStore, type PaneSide, type Tab} from './store'
@@ -56,6 +60,13 @@ export function applyTheme(theme: Theme) {
     systemThemeQuery = window.matchMedia('(prefers-color-scheme: light)')
     systemThemeQuery.onchange = () => root.setAttribute('data-theme', resolve())
   }
+}
+
+export async function revealWindow() {
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  const window = getCurrentWindow()
+  await window.show().catch(() => undefined)
+  await window.setFocus().catch(() => undefined)
 }
 
 export async function bootstrap() {
@@ -584,6 +595,108 @@ export interface TransferOptions {
   startPaused?: boolean
 }
 
+export interface RequestOptions {
+  priority?: number,
+  startPaused?: boolean
+}
+
+function followSymlinks(): boolean {
+  return store.getState().settings.symlinkDownload === 'follow'
+}
+
+export function buildDownloadRequests(
+  sessionId: string,
+  entries: Entry[],
+  localDest: string,
+  options: RequestOptions = {}
+): QueueRequest[] {
+  const followSymlink = followSymlinks()
+
+  return entries.map((entry) => {
+    const dirLike = isDirLike(entry)
+    const copyLink = !followSymlink && isLink(entry)
+
+    return {
+      sessionId,
+      direction: 'download',
+      localPath: joinLocal(localDest, entry.name),
+      remotePath: entry.path,
+      isDir: dirLike && !copyLink,
+      size: dirLike || copyLink ? null : entry.size,
+      mtime: entry.mtime,
+      priority: options.priority ?? 0,
+      followSymlink,
+      startPaused: options.startPaused ?? false,
+      linkTarget: copyLink ? (entry.linkTarget ?? '') : null
+    }
+  })
+}
+
+export function buildUploadRequests(
+  sessionId: string,
+  entries: Entry[],
+  remoteDest: string,
+  options: RequestOptions = {}
+): QueueRequest[] {
+  const followSymlink = followSymlinks()
+
+  return entries.map((entry) => {
+    const dirLike = isDirLike(entry)
+
+    return {
+      sessionId,
+      direction: 'upload',
+      localPath: entry.path,
+      remotePath: joinRemote(remoteDest, entry.name),
+      isDir: dirLike,
+      size: dirLike ? null : entry.size,
+      mtime: entry.mtime,
+      priority: options.priority ?? 0,
+      followSymlink,
+      startPaused: options.startPaused ?? false
+    }
+  })
+}
+
+export function buildRemoteCopyRequests(
+  sessionId: string,
+  entries: Entry[],
+  targetSessionId: string,
+  targets: string[]
+): QueueRequest[] {
+  const followSymlink = followSymlinks()
+
+  return entries.map((entry, index) => {
+    const dirLike = isDirLike(entry)
+
+    return {
+      sessionId,
+      direction: 'copy',
+      localPath: '',
+      remotePath: entry.path,
+      isDir: dirLike,
+      size: dirLike ? null : entry.size,
+      mtime: entry.mtime,
+      followSymlink,
+      targetSessionId,
+      targetPath: targets[index]
+    }
+  })
+}
+
+export async function enqueueTransfers(requests: QueueRequest[]) {
+  if (requests.length === 0) {
+    return
+  }
+
+  try {
+    await api.queueAdd(requests)
+    store.getState().setBottomTab('queue')
+  } catch (error) {
+    toastError(error)
+  }
+}
+
 export async function transferEntries(
   tabId: string,
   fromSide: PaneSide,
@@ -596,56 +709,95 @@ export async function transferEntries(
     return
   }
 
-  const settings = store.getState().settings
-  const {priority = 0, startPaused = false} = options
-  const localDest = fromSide === 'remote' ? (options.destDir ?? tab.local.path) : tab.local.path
-  const remoteDest = fromSide === 'local' ? (options.destDir ?? tab.remote.path) : tab.remote.path
-  const requests: QueueRequest[] = entries.map((entry) => {
-    const dirLike = isDirLike(entry)
-    const followSymlink = settings.symlinkDownload === 'follow'
+  const requestOptions = {priority: options.priority, startPaused: options.startPaused}
+  const requests =
+    fromSide === 'remote'
+      ? buildDownloadRequests(
+        tab.sessionId,
+        entries,
+        options.destDir ?? tab.local.path,
+        requestOptions
+      )
+      : buildUploadRequests(
+        tab.sessionId,
+        entries,
+        options.destDir ?? tab.remote.path,
+        requestOptions
+      )
+  await enqueueTransfers(requests)
+}
 
-    if (fromSide === 'remote') {
-      const copyLink = !followSymlink && isLink(entry)
+export async function copyLocalPaths(tabId: string, sources: string[], destDir?: string) {
+  const tab = tabById(tabId)
+  const dir = destDir ?? tab?.local.path
 
-      return {
-        sessionId: tab.sessionId!,
-        direction: 'download',
-        localPath: joinLocal(localDest, entry.name),
-        remotePath: entry.path,
-        isDir: dirLike && !copyLink,
-        size: dirLike || copyLink ? null : entry.size,
-        mtime: entry.mtime,
-        priority,
-        followSymlink,
-        startPaused,
-        linkTarget: copyLink ? (entry.linkTarget ?? '') : null
-      }
-    }
-
-    return {
-      sessionId: tab.sessionId!,
-      direction: 'upload',
-      localPath: entry.path,
-      remotePath: joinRemote(remoteDest, entry.name),
-      isDir: dirLike,
-      size: dirLike ? null : entry.size,
-      mtime: entry.mtime,
-      priority,
-      followSymlink,
-      startPaused
-    }
-  })
-
-  if (requests.length === 0) {
+  if (!tab || sources.length === 0) {
     return
   }
 
+  if (!dir) {
+    store.getState().pushToast(t('clipboard.noTarget'), 'info')
+
+    return
+  }
+
+  let existing: Set<string>
+
   try {
-    await api.queueAdd(requests)
-    store.getState().setBottomTab('queue')
+    const listing = await api.localList(dir, true)
+    existing = new Set(listing.entries.map((entry) => entry.name.toLowerCase()))
   } catch (error) {
     toastError(error)
+
+    return
   }
+
+  const taken = new Set(existing)
+  const items: {source: string, destination: string}[] = []
+  let conflicts = 0
+
+  for (const source of sources) {
+    const name = basename(source)
+    const sameDir = normalizeLocal(parentLocal(source)) === normalizeLocal(dir)
+
+    if (sameDir) {
+      const fresh = uniqueName(name, (candidate) => taken.has(candidate.toLowerCase()))
+      taken.add(fresh.toLowerCase())
+      items.push({source, destination: joinLocal(dir, fresh)})
+    } else {
+      if (existing.has(name.toLowerCase())) {
+        conflicts += 1
+      }
+
+      items.push({source, destination: joinLocal(dir, name)})
+    }
+  }
+
+  const run = async (overwrite: boolean) => {
+    store.getState().updatePane(tabId, 'local', {loading: true})
+
+    try {
+      await api.localCopy(items, overwrite)
+    } catch (error) {
+      toastError(error)
+    }
+
+    await refresh(tabId, 'local')
+  }
+
+  if (conflicts === 0) {
+    await run(false)
+
+    return
+  }
+
+  store.getState().openDialog({
+    kind: 'confirm',
+    title: t('dialog.replaceTitle'),
+    message: t('dialog.replaceConfirm', {n: conflicts}),
+    confirmLabel: t('dialog.replace'),
+    onConfirm: () => run(true)
+  })
 }
 
 export async function uploadLocalPaths(tabId: string, paths: string[], remoteDir?: string) {

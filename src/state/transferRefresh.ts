@@ -34,10 +34,12 @@ function affectedPanes(item: TransferItem, tabs: Tab[]): PaneRef[] {
       .map((tab) => ({tabId: tab.id, side: 'local' as const}))
   }
 
-  const destination = normalizeRemote(parentRemote(item.remotePath))
+  const remoteTarget = item.direction === 'copy' ? (item.targetPath ?? '') : item.remotePath
+  const targetSession = item.direction === 'copy' ? (item.targetSessionId ?? item.sessionId) : item.sessionId
+  const destination = normalizeRemote(parentRemote(remoteTarget))
 
   return tabs
-    .filter((tab) => tab.sessionId !== null && tab.sessionId === item.sessionId)
+    .filter((tab) => tab.sessionId !== null && tab.sessionId === targetSession)
     .filter((tab) => isSameOrAncestor(normalizeRemote(tab.remote.path), destination, '/'))
     .map((tab) => ({tabId: tab.id, side: 'remote' as const}))
 }

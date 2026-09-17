@@ -19,6 +19,7 @@ interface Props {
   loading: boolean,
   error: string | null,
   emptyText: string,
+  emptyAction?: {label: string, onClick: () => void},
   showPermissions: boolean,
   onOpen: (entry: Entry) => void,
   onSelect: (selected: string[], cursor: string | null) => void,
@@ -295,7 +296,14 @@ export function FileList(props: Props) {
             {props.error}
           </div>
         ) : entries.length === 0 && !props.loading ? (
-          <div className="empty">{props.emptyText}</div>
+          <div className="empty">
+            <span>{props.emptyText}</span>
+            {props.emptyAction && (
+              <button className="outline" autoFocus onClick={props.emptyAction.onClick}>
+                {props.emptyAction.label}
+              </button>
+            )}
+          </div>
         ) : (
           <div
             style={{
@@ -400,7 +408,13 @@ export function beginEntryDrag(
   event: React.MouseEvent,
   label: string,
   onDrop: (target: Element | null) => void,
-  onHover?: (target: Element | null) => void
+  onHover?: (target: Element | null) => void,
+  onLeaveWindow?: () => void
 ) {
-  startMouseDrag(event, {label, onDrop: (target) => onDrop(target), onMove: onHover})
+  startMouseDrag(event, {
+    label,
+    onDrop: (target) => onDrop(target),
+    onMove: onHover,
+    onLeaveWindow
+  })
 }

@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 pub enum Direction {
   Download,
   Upload,
+  Copy,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -50,11 +51,21 @@ pub struct TransferItem {
   pub follow_symlink: bool,
   pub conflict_policy: Option<ConflictPolicy>,
   pub link_target: Option<String>,
+  #[serde(default)]
+  pub batch: Option<String>,
+  #[serde(default)]
+  pub target_session_id: Option<String>,
+  #[serde(default)]
+  pub target_path: Option<String>,
   #[serde(skip)]
   pub retry_after: Option<i64>,
 }
 
 impl TransferItem {
+  pub fn copy_target(&self) -> &str {
+    self.target_path.as_deref().unwrap_or_default()
+  }
+
   pub fn is_pending(&self) -> bool {
     matches!(
       self.status,

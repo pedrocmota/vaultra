@@ -212,7 +212,7 @@ export function SyncDialog({tabId, close}: {tabId: string, close: () => void}) {
                       entry.localMtime,
                       language
                     )}`
-                    : '—'}
+                    : '-'}
                 </td>
                 <td>
                   {entry.remoteSize !== null
@@ -220,7 +220,7 @@ export function SyncDialog({tabId, close}: {tabId: string, close: () => void}) {
                       entry.remoteMtime,
                       language
                     )}`
-                    : '—'}
+                    : '-'}
                 </td>
                 <td className="diff-actions">
                   <select

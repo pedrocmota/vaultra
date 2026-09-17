@@ -10,7 +10,17 @@ import {TabBar} from './components/TabBar'
 import {Toasts} from './components/Toasts'
 import {useBrowserShortcutGuard, useGlobalKeymap} from './hooks/useKeymap'
 import {browserShortcuts, globalKeymap} from './keybindings'
-import {bootstrap, closeTab, newTab, refresh, toastError, uploadLocalPaths} from './state/actions'
+import {
+  bootstrap,
+  closeTab,
+  copyLocalPaths,
+  newTab,
+  refresh,
+  revealWindow,
+  toastError,
+  uploadLocalPaths
+} from './state/actions'
+import {isNativeDragActive} from './state/dragOut'
 import {useStore, useT} from './state/store'
 
 export function App() {
@@ -32,7 +42,9 @@ export function App() {
   const highlighted = useRef<Element | null>(null)
 
   useEffect(() => {
-    bootstrap().catch(toastError)
+    bootstrap()
+      .catch(toastError)
+      .finally(() => void revealWindow())
   }, [])
 
   const cycleTab = (offset: number) => {
@@ -68,7 +80,7 @@ export function App() {
           highlighted.current = null
         }
 
-        if (event.payload.type === 'leave') {
+        if (event.payload.type === 'leave' || isNativeDragActive()) {
           clear()
 
           return
@@ -77,7 +89,7 @@ export function App() {
         const position = event.payload.position
         const scale = window.devicePixelRatio || 1
         const element = document.elementFromPoint(position.x / scale, position.y / scale)
-        const pane = element?.closest<HTMLElement>('.pane[data-side=\'remote\']')
+        const pane = element?.closest<HTMLElement>('.pane[data-side]')
         const list = pane?.querySelector('.filelist') ?? null
 
         if (event.payload.type === 'enter' || event.payload.type === 'over') {
@@ -104,8 +116,14 @@ export function App() {
           const row = element?.closest<HTMLElement>('.row[data-path]')
           const destDir = row && row.dataset.dir === '1' ? row.dataset.path : undefined
 
-          if (tabId) {
+          if (!tabId) {
+            return
+          }
+
+          if (pane.dataset.side === 'remote') {
             void uploadLocalPaths(tabId, event.payload.paths, destDir)
+          } else {
+            void copyLocalPaths(tabId, event.payload.paths, destDir)
           }
         }
       })

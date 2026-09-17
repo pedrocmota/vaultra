@@ -1,12 +1,25 @@
 export interface DragSession {
   label: string,
   onDrop: (target: Element | null, clientX: number, clientY: number) => void,
-  onMove?: (target: Element | null) => void
+  onMove?: (target: Element | null) => void,
+  onLeaveWindow?: (event: MouseEvent) => void
 }
 
 const THRESHOLD = 6
 
 let ghost: HTMLDivElement | null = null
+
+function isOutsideWindow(event: MouseEvent): boolean {
+  const left = window.screenX
+  const top = window.screenY
+
+  return (
+    event.screenX < left
+    || event.screenY < top
+    || event.screenX >= left + window.outerWidth
+    || event.screenY >= top + window.outerHeight
+  )
+}
 
 function createGhost(label: string): HTMLDivElement {
   const element = document.createElement('div')
@@ -52,7 +65,16 @@ export function startMouseDrag(event: MouseEvent | React.MouseEvent, session: Dr
     return element
   }
 
-  const onMove = (e: MouseEvent) => {
+  const finish = () => {
+    window.removeEventListener('mousemove', onMove)
+    window.removeEventListener('mouseup', onUp)
+    ghost?.remove()
+    ghost = null
+    document.body.style.cursor = ''
+    session.onMove?.(null)
+  }
+
+  function onMove(e: MouseEvent) {
     if (!active) {
       if (Math.abs(e.clientX - startX) < THRESHOLD && Math.abs(e.clientY - startY) < THRESHOLD) {
         return
@@ -63,6 +85,13 @@ export function startMouseDrag(event: MouseEvent | React.MouseEvent, session: Dr
       document.body.style.cursor = 'grabbing'
     }
 
+    if (session.onLeaveWindow && isOutsideWindow(e)) {
+      finish()
+      session.onLeaveWindow(e)
+
+      return
+    }
+
     if (ghost) {
       ghost.style.left = `${e.clientX}px`
       ghost.style.top = `${e.clientY}px`
@@ -71,19 +100,16 @@ export function startMouseDrag(event: MouseEvent | React.MouseEvent, session: Dr
     session.onMove?.(elementUnder(e.clientX, e.clientY))
   }
 
-  const onUp = (e: MouseEvent) => {
-    window.removeEventListener('mousemove', onMove)
-    window.removeEventListener('mouseup', onUp)
-
+  function onUp(e: MouseEvent) {
     if (!active) {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+
       return
     }
 
     const target = elementUnder(e.clientX, e.clientY)
-    ghost?.remove()
-    ghost = null
-    document.body.style.cursor = ''
-    session.onMove?.(null)
+    finish()
     session.onDrop(target, e.clientX, e.clientY)
   }
 

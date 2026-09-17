@@ -27,6 +27,20 @@ pub fn recent_file() -> PathBuf {
   data_dir().join("recent.json")
 }
 
+pub fn drag_temp_root() -> PathBuf {
+  std::env::temp_dir().join("Vaultra").join("drag")
+}
+
+pub fn new_drag_temp_dir() -> std::io::Result<PathBuf> {
+  let dir = drag_temp_root().join(uuid::Uuid::new_v4().simple().to_string());
+  std::fs::create_dir_all(&dir)?;
+  Ok(dir)
+}
+
+pub fn clear_drag_temp() {
+  let _ = std::fs::remove_dir_all(drag_temp_root());
+}
+
 pub fn edit_temp_dir() -> PathBuf {
   let dir = std::env::temp_dir().join("Vaultra").join("edit");
   let _ = std::fs::create_dir_all(&dir);

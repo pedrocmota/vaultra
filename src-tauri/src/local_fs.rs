@@ -242,6 +242,74 @@ pub fn delete(path: &str) -> VResult<()> {
   }
 }
 
+pub fn copy_tree(source: &str, destination: &str, overwrite: bool) -> VResult<()> {
+  let from = Path::new(source);
+  let to = Path::new(destination);
+  if is_same_or_inside(from, to) {
+    return Err(VError::Io(format!(
+      "cannot copy {source} into itself or one of its subfolders"
+    )));
+  }
+  let meta = std::fs::metadata(from)?;
+  if meta.is_dir() {
+    copy_dir(from, to, overwrite)
+  } else {
+    copy_file(from, to, overwrite)
+  }
+}
+
+fn is_same_or_inside(source: &Path, destination: &Path) -> bool {
+  let Ok(source) = std::fs::canonicalize(source) else {
+    return false;
+  };
+  let Some(existing) = destination.ancestors().find(|c| c.exists()) else {
+    return false;
+  };
+  let Ok(base) = std::fs::canonicalize(existing) else {
+    return false;
+  };
+  let suffix = destination.strip_prefix(existing).unwrap_or(Path::new(""));
+  let source_text = comparable(&source);
+  let target_text = comparable(&base.join(suffix));
+  target_text == source_text || target_text.starts_with(&format!("{source_text}\\"))
+}
+
+fn comparable(path: &Path) -> String {
+  strip_verbatim(&path.to_string_lossy())
+    .trim_end_matches('\\')
+    .to_lowercase()
+}
+
+fn copy_file(from: &Path, to: &Path, overwrite: bool) -> VResult<()> {
+  if to.exists() && !overwrite {
+    return Err(VError::Io(format!("{} already exists", to.display())));
+  }
+  if let Some(parent) = to.parent() {
+    std::fs::create_dir_all(parent)?;
+  }
+  std::fs::copy(from, to)?;
+  Ok(())
+}
+
+fn copy_dir(from: &Path, to: &Path, overwrite: bool) -> VResult<()> {
+  std::fs::create_dir_all(to)?;
+  for entry in std::fs::read_dir(from)? {
+    let entry = entry?;
+    let target = to.join(entry.file_name());
+    let source = entry.path();
+    let meta = match std::fs::metadata(&source) {
+      Ok(meta) => meta,
+      Err(_) => continue,
+    };
+    if meta.is_dir() {
+      copy_dir(&source, &target, overwrite)?;
+    } else {
+      copy_file(&source, &target, overwrite)?;
+    }
+  }
+  Ok(())
+}
+
 pub fn parent_of(path: &str) -> Option<String> {
   let p = Path::new(path);
   let parent = p.parent()?;
@@ -257,4 +325,62 @@ pub fn parent_of(path: &str) -> Option<String> {
 
 pub fn join(base: &str, name: &str) -> String {
   Path::new(base).join(name).to_string_lossy().into_owned()
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn copies_nested_folders() {
+    let root = tempfile::tempdir().expect("tempdir");
+    let source = root.path().join("src");
+    std::fs::create_dir_all(source.join("inner")).unwrap();
+    std::fs::write(source.join("a.txt"), b"alpha").unwrap();
+    std::fs::write(source.join("inner").join("b.txt"), b"beta").unwrap();
+    let destination = root.path().join("dst");
+    copy_tree(
+      &source.to_string_lossy(),
+      &destination.to_string_lossy(),
+      false,
+    )
+    .unwrap();
+    assert_eq!(std::fs::read(destination.join("a.txt")).unwrap(), b"alpha");
+    assert_eq!(
+      std::fs::read(destination.join("inner").join("b.txt")).unwrap(),
+      b"beta"
+    );
+  }
+
+  #[test]
+  fn refuses_copy_into_itself() {
+    let root = tempfile::tempdir().expect("tempdir");
+    let source = root.path().join("src");
+    std::fs::create_dir_all(&source).unwrap();
+    let inside = source.join("copy");
+    let result = copy_tree(&source.to_string_lossy(), &inside.to_string_lossy(), false);
+    assert!(result.is_err());
+  }
+
+  #[test]
+  fn refuses_overwrite_unless_requested() {
+    let root = tempfile::tempdir().expect("tempdir");
+    let source = root.path().join("a.txt");
+    let destination = root.path().join("b.txt");
+    std::fs::write(&source, b"new").unwrap();
+    std::fs::write(&destination, b"old").unwrap();
+    let denied = copy_tree(
+      &source.to_string_lossy(),
+      &destination.to_string_lossy(),
+      false,
+    );
+    assert!(denied.is_err());
+    copy_tree(
+      &source.to_string_lossy(),
+      &destination.to_string_lossy(),
+      true,
+    )
+    .unwrap();
+    assert_eq!(std::fs::read(&destination).unwrap(), b"new");
+  }
 }

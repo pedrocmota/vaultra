@@ -1,10 +1,11 @@
 [package]
 name = "vaultra"
-version = "0.1.1"
+version = "0.1.2"
 description = "Vaultra - Cliente FTP/FTPS/SFTP moderno para Windows"
 authors = ["Vaultra"]
 edition = "2021"
 rust-version = "1.80"
+default-run = "vaultra"
 
 [lib]
 name = "vaultra_lib"
@@ -64,8 +65,17 @@ windows = { version = "0.61", features = [
   "Win32_Storage_FileSystem",
   "Win32_UI_Shell",
   "Win32_UI_WindowsAndMessaging",
+  "Win32_UI_Input_KeyboardAndMouse",
   "Win32_Graphics_Gdi",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Ole",
+  "Win32_System_DataExchange",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Memory",
+  "Win32_System_SystemServices",
 ] }
+windows-core = "0.61"
 
 [[bin]]
 name = "live_servers"

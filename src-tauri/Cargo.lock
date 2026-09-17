@@ -4766,7 +4766,7 @@ checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
 name = "vaultra"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4809,6 +4809,7 @@ dependencies = [
  "uuid",
  "webpki-roots 0.26.11",
  "windows",
+ "windows-core 0.61.2",
  "winreg",
  "x509-parser",
 ]

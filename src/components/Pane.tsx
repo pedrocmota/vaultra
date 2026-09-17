@@ -26,6 +26,8 @@ import {
   transferEntries,
   viewEdit
 } from '@/state/actions'
+import {copyEntries, pasteEntries} from '@/state/clipboard'
+import {dragOutEntries} from '@/state/dragOut'
 import {useStore, useT, type ColumnWidths, type PaneSide} from '@/state/store'
 import {ContextMenu, type MenuItem, type MenuState} from './ContextMenu'
 import {beginEntryDrag, FileList} from './FileList'
@@ -94,8 +96,17 @@ export function Pane({tabId, side, style}: Props) {
         true
       ),
     remove: (entries: Entry[]) => deleteEntries(tabId, side, entries),
-    refresh: () => refresh(tabId, side)
+    refresh: () => refresh(tabId, side),
+    copy: (entries: Entry[]) => copyEntries(tabId, side, entries),
+    paste: () => pasteEntries(tabId, side)
   }
+
+  const pasteItem = (): MenuItem => ({
+    label: t('ctx.paste'),
+    shortcut: paneKeymap.label('paste'),
+    onClick: () => void actions.paste(),
+    disabled: !connected
+  })
 
   const buildMenu = (entry: Entry | null): MenuItem[] => {
     const selection = entry
@@ -123,6 +134,7 @@ export function Pane({tabId, side, style}: Props) {
         },
         {label: t('ctx.newFile'), onClick: () => actions.newFile(), disabled: !connected},
         {separator: true},
+        pasteItem(),
         {
           label: t('ctx.refresh'),
           shortcut: paneKeymap.label('refresh'),
@@ -154,6 +166,13 @@ export function Pane({tabId, side, style}: Props) {
         onClick: () => actions.enqueue(selection),
         disabled: !tab?.sessionId
       },
+      {separator: true},
+      {
+        label: t('ctx.copy'),
+        shortcut: paneKeymap.label('copy'),
+        onClick: () => void actions.copy(selection)
+      },
+      pasteItem(),
       {separator: true},
       {
         label: isRemote ? t('ctx.viewEdit') : t('ctx.open'),
@@ -254,14 +273,19 @@ export function Pane({tabId, side, style}: Props) {
           visible.map((e) => e.path),
           pane?.cursor ?? null
         ),
+      copy: () => selection.length > 0 && actions.copy(selection),
+      paste: () => connected && actions.paste(),
       refresh: () => actions.refresh(),
       historyBack: () => goHistory(tabId, side, -1),
       historyForward: () => goHistory(tabId, side, 1)
     }
   }
 
+  const activatesButton = (event: React.KeyboardEvent) =>
+    event.target instanceof HTMLButtonElement && (event.key === 'Enter' || event.key === ' ')
+
   const onKeyDown = (event: React.KeyboardEvent) => {
-    if (!pane || !tab) {
+    if (!pane || !tab || activatesButton(event)) {
       return
     }
 
@@ -305,7 +329,8 @@ export function Pane({tabId, side, style}: Props) {
 
           lastPane = list
         }
-      }
+      },
+      () => void dragOutEntries(tabId, side, entries)
     )
   }
 
@@ -417,6 +442,11 @@ export function Pane({tabId, side, style}: Props) {
             : pane.path === '' && !isRemote
               ? t('pane.drives')
               : t('pane.empty')
+        }
+        emptyAction={
+          !connected
+            ? {label: t('pane.openSiteManager'), onClick: () => openDialog({kind: 'siteManager'})}
+            : undefined
         }
         showPermissions={isRemote}
         onOpen={(entry) => void openEntry(tabId, side, entry)}

@@ -24,10 +24,33 @@ import {SettingsDialog} from './SettingsDialog'
 import {SiteManager} from './SiteManager'
 import {SyncDialog} from './SyncDialog'
 
+function focusedPaneElement(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('.pane.focused')
+}
+
 export function Dialogs() {
   const dialogs = useStore((s) => s.dialogs)
   const closeDialog = useStore((s) => s.closeDialog)
   const dialog = dialogs[dialogs.length - 1]
+  const open = dialogs.length > 0
+  const restoreTo = useRef<HTMLElement | null>(null)
+
+  useEffect(() => {
+    if (open) {
+      const active = document.activeElement
+
+      if (active instanceof HTMLElement && !active.closest('.overlay')) {
+        restoreTo.current = active
+      }
+
+      return
+    }
+
+    const target =
+      restoreTo.current && restoreTo.current.isConnected ? restoreTo.current : focusedPaneElement()
+    restoreTo.current = null
+    target?.focus()
+  }, [open])
 
   if (!dialog) {
     return null
@@ -555,7 +578,7 @@ function AboutDialog({close}: {close: () => void}) {
       }
     >
       <p>
-        <strong>Vaultra</strong> — {t('about.tagline')}
+        <strong>Vaultra</strong> - {t('about.tagline')}
       </p>
       <div className="kv">
         <span className="k">{t('about.version')}</span>

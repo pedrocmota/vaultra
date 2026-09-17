@@ -12,8 +12,10 @@ import {
   newTab,
   queueActions,
   refresh,
+  selectedEntries,
   updateSettings
 } from '@/state/actions'
+import {copyEntries, pasteEntries} from '@/state/clipboard'
 import {useStore, useT} from '@/state/store'
 import type {MenuItem} from './ContextMenu'
 
@@ -119,7 +121,26 @@ export function MenuBar() {
     {
       id: 'edit',
       label: t('menu.edit'),
-      items: [{label: t('menu.settings'), onClick: () => openDialog({kind: 'settings'})}]
+      items: [
+        {
+          label: t('menu.copy'),
+          shortcut: paneKeymap.label('copy'),
+          disabled: !tab || selectedEntries(tab, focusedPane).length === 0,
+          onClick: () => {
+            if (tab) {
+              void copyEntries(tab.id, focusedPane, selectedEntries(tab, focusedPane))
+            }
+          }
+        },
+        {
+          label: t('menu.paste'),
+          shortcut: paneKeymap.label('paste'),
+          disabled: !tab || (focusedPane === 'remote' && !tab.sessionId),
+          onClick: () => tab && void pasteEntries(tab.id, focusedPane)
+        },
+        {separator: true},
+        {label: t('menu.settings'), onClick: () => openDialog({kind: 'settings'})}
+      ]
     },
     {
       id: 'view',

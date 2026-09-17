@@ -87,6 +87,7 @@ async fn expand_directory(
   let children = match item.direction {
     Direction::Download => expand_remote_directory(item, session).await?,
     Direction::Upload => expand_local_directory(item, session).await?,
+    Direction::Copy => expand_copy_directory(queue, item, session).await?,
   };
   queue.insert_children(&item.id, children);
   Ok(Outcome::Done)
@@ -122,8 +123,276 @@ fn child_of(
     follow_symlink: parent.follow_symlink,
     conflict_policy: parent.conflict_policy,
     link_target: None,
+    batch: parent.batch.clone(),
+    target_session_id: parent.target_session_id.clone(),
+    target_path: None,
     retry_after: None,
   }
+}
+
+fn copy_child_of(
+  parent: &TransferItem,
+  source: String,
+  target: String,
+  is_dir: bool,
+  size: Option<u64>,
+  mtime: Option<i64>,
+) -> TransferItem {
+  let mut child = child_of(parent, String::new(), source, is_dir, size, mtime);
+  child.target_path = Some(target);
+  child
+}
+
+fn target_session(
+  queue: &TransferQueue,
+  item: &TransferItem,
+  source: &Arc<Session>,
+) -> VResult<Arc<Session>> {
+  match item.target_session_id.as_deref() {
+    Some(id) if id != source.id => queue.sessions.get(id),
+    _ => Ok(source.clone()),
+  }
+}
+
+async fn ensure_remote_dir(session: &Arc<Session>, path: &str) -> VResult<()> {
+  let client = session.client();
+  if let Err(error) = client.mkdir(path).await {
+    if client
+      .stat(path)
+      .await
+      .map(|e| e.kind != EntryKind::Dir)
+      .unwrap_or(true)
+    {
+      return Err(error);
+    }
+  }
+  session.invalidate(path);
+  Ok(())
+}
+
+async fn expand_copy_directory(
+  queue: &Arc<TransferQueue>,
+  item: &TransferItem,
+  session: &Arc<Session>,
+) -> VResult<Vec<TransferItem>> {
+  let target = target_session(queue, item, session)?;
+  let target_dir = item.copy_target().to_string();
+  let same_server = target.id == session.id;
+  let inside_itself =
+    target_dir == item.remote_path || target_dir.starts_with(&format!("{}/", item.remote_path));
+  if same_server && inside_itself {
+    return Err(VError::Protocol(format!(
+      "cannot copy {} into itself",
+      item.remote_path
+    )));
+  }
+  ensure_remote_dir(&target, &target_dir).await?;
+  let entries = session.list(&item.remote_path, true).await?;
+  let mut children = Vec::with_capacity(entries.len());
+  for entry in entries {
+    let destination = protocol::join(&target_dir, &entry.name);
+    match entry.kind {
+      EntryKind::Dir => children.push(copy_child_of(
+        item,
+        entry.path,
+        destination,
+        true,
+        None,
+        None,
+      )),
+      EntryKind::File => children.push(copy_child_of(
+        item,
+        entry.path,
+        destination,
+        false,
+        Some(entry.size),
+        entry.mtime,
+      )),
+      EntryKind::Symlink if item.follow_symlink && !entry.link_broken => {
+        let is_dir = entry.target_is_dir.unwrap_or(false);
+        children.push(copy_child_of(
+          item,
+          entry.path,
+          destination,
+          is_dir,
+          (!is_dir).then_some(entry.size),
+          entry.mtime,
+        ));
+      }
+      EntryKind::Symlink => {
+        session
+          .log
+          .error(format!("Skipping symlink {} in remote copy", entry.path));
+      }
+      EntryKind::Other => {}
+    }
+  }
+  Ok(children)
+}
+
+struct CopyPlan {
+  offset: u64,
+  target_path: String,
+  source: FileFacts,
+}
+
+async fn plan_copy(
+  queue: &Arc<TransferQueue>,
+  item: &TransferItem,
+  session: &Arc<Session>,
+  target_session: &Arc<Session>,
+  source_client: &dyn RemoteClient,
+  target_client: &dyn RemoteClient,
+) -> VResult<Option<CopyPlan>> {
+  let target_path = item.copy_target().to_string();
+  if target_path.is_empty() {
+    return Err(VError::Protocol("copy target path is missing".into()));
+  }
+  let remote = source_client.stat(&item.remote_path).await?;
+  if remote.kind == EntryKind::Dir {
+    return Err(VError::Protocol(format!(
+      "{} is a directory",
+      item.remote_path
+    )));
+  }
+  let source = FileFacts {
+    size: remote.size,
+    mtime: remote.mtime,
+  };
+  let existing = match target_client.stat(&target_path).await {
+    Ok(entry) if entry.kind != EntryKind::Dir => Some(FileFacts {
+      size: entry.size,
+      mtime: entry.mtime,
+    }),
+    _ => None,
+  };
+  let Some(existing) = existing else {
+    return Ok(Some(CopyPlan {
+      offset: 0,
+      target_path,
+      source,
+    }));
+  };
+  if item.transferred > 0 && existing.size <= source.size {
+    return Ok(Some(CopyPlan {
+      offset: existing.size,
+      target_path,
+      source,
+    }));
+  }
+  let mut policy = queue.effective_policy(item, session);
+  if policy == ConflictPolicy::Ask {
+    let prompt = ConflictPrompt {
+      item_id: item.id.clone(),
+      session_id: session.id.clone(),
+      direction: item.direction,
+      source_path: item.remote_path.clone(),
+      source_size: source.size,
+      source_mtime: source.mtime,
+      target_path: target_path.clone(),
+      target_size: existing.size,
+      target_mtime: existing.mtime,
+    };
+    policy = queue.ask_conflict(prompt).await?.action.as_policy();
+  }
+  match resolve(policy, source, existing) {
+    Resolution::Skip => Ok(None),
+    Resolution::Write {
+      offset,
+      rename: false,
+    } => Ok(Some(CopyPlan {
+      offset,
+      target_path,
+      source,
+    })),
+    Resolution::Write { offset, .. } => {
+      let dir = protocol::parent(&target_path);
+      let siblings: Vec<String> = target_session
+        .list(&dir, true)
+        .await
+        .map(|l| l.into_iter().map(|e| e.name).collect())
+        .unwrap_or_default();
+      let fresh = unique_name(&protocol::basename(&target_path), |candidate| {
+        siblings.iter().any(|s| s == candidate)
+      });
+      Ok(Some(CopyPlan {
+        offset,
+        target_path: protocol::join(&dir, &fresh),
+        source,
+      }))
+    }
+  }
+}
+
+async fn copy_remote_file(
+  queue: &Arc<TransferQueue>,
+  item: &TransferItem,
+  session: &Arc<Session>,
+  control: &Control,
+) -> VResult<Outcome> {
+  let target_session = target_session(queue, item, session)?;
+  let source_lease = session.transfer_client().await?;
+  let target_lease = target_session.transfer_client().await?;
+  let source_client = source_lease.client.clone();
+  let target_client = target_lease.client.clone();
+  let plan = match plan_copy(
+    queue,
+    item,
+    session,
+    &target_session,
+    source_client.as_ref(),
+    target_client.as_ref(),
+  )
+  .await?
+  {
+    Some(plan) => plan,
+    None => return Ok(Outcome::Skipped),
+  };
+  queue.update(&item.id, |i| {
+    i.size = Some(plan.source.size);
+    i.target_path = Some(plan.target_path.clone());
+  });
+  let mut reader = source_client
+    .open_read(&item.remote_path, plan.offset)
+    .await?;
+  let mut writer = target_client
+    .open_write(&plan.target_path, plan.offset)
+    .await?;
+  let mut progress = ProgressTracker::new(queue, &item.id, plan.source.size, plan.offset);
+  let mut buffer = vec![0u8; BUFFER_SIZE];
+  let outcome = loop {
+    if let Some(outcome) = interrupted(control) {
+      break outcome;
+    }
+    let n = reader.read(&mut buffer).await?;
+    if n == 0 {
+      break Outcome::Done;
+    }
+    writer.write(&buffer[..n]).await?;
+    progress.advance(n);
+    queue.throttle.consume(n).await;
+  };
+  let finish_writer = writer.finish().await;
+  let finish_reader = reader.finish().await;
+  progress.finish();
+  if !matches!(outcome, Outcome::Done) {
+    return Ok(outcome);
+  }
+  finish_reader?;
+  finish_writer?;
+  let actual = target_client.stat(&plan.target_path).await?.size;
+  if actual != plan.source.size {
+    return Err(VError::Protocol(format!(
+      "size mismatch after copy: expected {} bytes, got {actual}",
+      plan.source.size
+    )));
+  }
+  target_session.invalidate(&plan.target_path);
+  session.log.status(format!(
+    "Remote copy complete: {} -> {}",
+    item.remote_path, plan.target_path
+  ));
+  Ok(Outcome::Done)
 }
 
 async fn expand_remote_directory(
@@ -271,6 +540,9 @@ async fn transfer_file(
   session: &Arc<Session>,
   control: &Control,
 ) -> VResult<Outcome> {
+  if item.direction == Direction::Copy {
+    return copy_remote_file(queue, item, session, control).await;
+  }
   if item.direction == Direction::Download && item.link_target.is_some() {
     return copy_symlink(item, session).await;
   }
@@ -287,7 +559,9 @@ async fn transfer_file(
   });
   let outcome = match item.direction {
     Direction::Download => download(queue, item, client.as_ref(), &plan, control).await?,
-    Direction::Upload => upload(queue, item, client.as_ref(), &plan, control).await?,
+    Direction::Upload | Direction::Copy => {
+      upload(queue, item, client.as_ref(), &plan, control).await?
+    }
   };
   if matches!(outcome, Outcome::Done) {
     verify(queue, item, client.as_ref(), &plan).await?;
@@ -322,6 +596,11 @@ async fn plan_transfer(
         },
         local_facts(&local_path),
       )
+    }
+    Direction::Copy => {
+      return Err(VError::Protocol(
+        "remote copies are planned by the copy worker".into(),
+      ));
     }
     Direction::Upload => {
       let meta = std::fs::metadata(&local_path)?;
@@ -370,13 +649,13 @@ async fn plan_transfer(
       direction: item.direction,
       source_path: match item.direction {
         Direction::Download => remote_path.clone(),
-        Direction::Upload => item.local_path.clone(),
+        Direction::Upload | Direction::Copy => item.local_path.clone(),
       },
       source_size: source.size,
       source_mtime: source.mtime,
       target_path: match item.direction {
         Direction::Download => item.local_path.clone(),
-        Direction::Upload => remote_path.clone(),
+        Direction::Upload | Direction::Copy => remote_path.clone(),
       },
       target_size: existing.size,
       target_mtime: existing.mtime,
@@ -411,7 +690,7 @@ async fn plan_transfer(
           let fresh = unique_name(&name, |candidate| dir.join(candidate).exists());
           (dir.join(fresh), remote_path)
         }
-        Direction::Upload => {
+        Direction::Upload | Direction::Copy => {
           let dir = protocol::parent(&remote_path);
           let siblings: Vec<String> = session
             .list(&dir, true)
@@ -606,7 +885,7 @@ async fn verify(
   let expected = plan.source.size;
   let actual = match item.direction {
     Direction::Download => std::fs::metadata(&plan.local_path)?.len(),
-    Direction::Upload => client.stat(&plan.remote_path).await?.size,
+    Direction::Upload | Direction::Copy => client.stat(&plan.remote_path).await?.size,
   };
   if actual != expected {
     return Err(VError::Protocol(format!(

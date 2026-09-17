@@ -36,6 +36,12 @@ pub struct QueueRequest {
   pub start_paused: bool,
   #[serde(default)]
   pub link_target: Option<String>,
+  #[serde(default)]
+  pub batch: Option<String>,
+  #[serde(default)]
+  pub target_session_id: Option<String>,
+  #[serde(default)]
+  pub target_path: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -47,6 +53,12 @@ fn default_true() -> bool {
 pub struct QueueSnapshot {
   pub items: Vec<TransferItem>,
   pub history: Vec<TransferItem>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct BatchStatus {
+  pub pending: usize,
+  pub failed: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -159,6 +171,9 @@ impl TransferQueue {
     let mut new_items = Vec::with_capacity(requests.len());
     for request in requests {
       let session = self.sessions.get(&request.session_id)?;
+      if let Some(target) = request.target_session_id.as_deref() {
+        self.sessions.get(target)?;
+      }
       let item = self.build_item(&session, request);
       ids.push(item.id.clone());
       new_items.push(item);
@@ -195,7 +210,36 @@ impl TransferQueue {
       follow_symlink: request.follow_symlink,
       conflict_policy: request.conflict_policy,
       link_target: request.link_target,
+      batch: request.batch,
+      target_session_id: request.target_session_id,
+      target_path: request.target_path,
       retry_after: None,
+    }
+  }
+
+  pub fn batch_status(&self, batch: &str) -> BatchStatus {
+    let items = self.items.lock();
+    let mut status = BatchStatus::default();
+    for item in items.iter().filter(|i| i.batch.as_deref() == Some(batch)) {
+      if item.status == TransferStatus::Failed {
+        status.failed += 1;
+      } else if item.is_pending() {
+        status.pending += 1;
+      }
+    }
+    status
+  }
+
+  pub fn remove_batch(&self, batch: &str) {
+    let ids: Vec<String> = self
+      .items
+      .lock()
+      .iter()
+      .filter(|i| i.batch.as_deref() == Some(batch))
+      .map(|i| i.id.clone())
+      .collect();
+    for id in ids {
+      self.remove(&id);
     }
   }
 

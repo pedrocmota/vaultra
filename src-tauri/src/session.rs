@@ -38,8 +38,11 @@ struct SessionPromptHandler {
   session_id: String,
   password: parking_lot::Mutex<Option<String>>,
   password_uses: AtomicU32,
+  interactive_prompts: AtomicU32,
   log: Arc<Logger>,
 }
+
+const MAX_INTERACTIVE_PASSWORD_PROMPTS: u32 = 1;
 
 #[async_trait]
 impl PromptHandler for SessionPromptHandler {
@@ -57,6 +60,15 @@ impl PromptHandler for SessionPromptHandler {
           && self.password_uses.fetch_add(1, Ordering::Relaxed) == 0
         {
           return stored;
+        }
+        if looks_like_password
+          && self.interactive_prompts.fetch_add(1, Ordering::Relaxed)
+            >= MAX_INTERACTIVE_PASSWORD_PROMPTS
+        {
+          self
+            .log
+            .error("Password rejected; not asking again for this connection".to_string());
+          return None;
         }
         let answer = self
           .broker
@@ -278,6 +290,7 @@ impl SessionManager {
           session_id: session_id.clone(),
           password: parking_lot::Mutex::new(password.clone()),
           password_uses: AtomicU32::new(0),
+          interactive_prompts: AtomicU32::new(0),
           log: log.clone(),
         });
         let options = ssh_options(&site, request.accept_new_hostkey);

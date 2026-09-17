@@ -91,8 +91,8 @@ mod win {
   use super::{classify, IconKind, ICON_SIZE};
   use windows::core::PCWSTR;
   use windows::Win32::Graphics::Gdi::{
-    DeleteObject, GetDC, GetDIBits, ReleaseDC, BITMAPINFO, BITMAPINFOHEADER, BI_RGB,
-    DIB_RGB_COLORS, HGDIOBJ,
+    DeleteObject, GetDC, GetDIBits, GetObjectW, ReleaseDC, BITMAP, BITMAPINFO, BITMAPINFOHEADER,
+    BI_RGB, DIB_RGB_COLORS, HGDIOBJ,
   };
   use windows::Win32::Storage::FileSystem::{
     FILE_ATTRIBUTE_DIRECTORY, FILE_ATTRIBUTE_NORMAL, FILE_FLAGS_AND_ATTRIBUTES,
@@ -143,55 +143,84 @@ mod win {
   fn icon_to_rgba(icon: HICON) -> Option<Vec<u8>> {
     let mut info = ICONINFO::default();
     unsafe { GetIconInfo(icon, &mut info) }.ok()?;
-    let color = read_bitmap(info.hbmColor, 32);
-    let mask = read_bitmap(info.hbmMask, 32);
+    let color = read_bitmap(info.hbmColor);
+    let mask = read_bitmap(info.hbmMask);
     unsafe {
       let _ = DeleteObject(HGDIOBJ(info.hbmColor.0));
       let _ = DeleteObject(HGDIOBJ(info.hbmMask.0));
     }
-    let mut bgra = color?;
+    let Pixels {
+      mut bgra,
+      width,
+      height,
+    } = color?;
     let has_alpha = bgra.chunks_exact(4).any(|px| px[3] != 0);
     if !has_alpha {
-      if let Some(mask) = mask {
-        for (px, m) in bgra.chunks_exact_mut(4).zip(mask.chunks_exact(4)) {
-          px[3] = if m[0] == 0 { 255 } else { 0 };
+      match mask {
+        Some(mask) if mask.width == width && mask.height == height => {
+          for (px, m) in bgra.chunks_exact_mut(4).zip(mask.bgra.chunks_exact(4)) {
+            px[3] = if m[0] == 0 { 255 } else { 0 };
+          }
         }
-      } else {
-        for px in bgra.chunks_exact_mut(4) {
-          px[3] = 255;
+        _ => {
+          for px in bgra.chunks_exact_mut(4) {
+            px[3] = 255;
+          }
         }
       }
     }
     for px in bgra.chunks_exact_mut(4) {
       px.swap(0, 2);
     }
-    Some(bgra)
+    Some(resample(&bgra, width, height, ICON_SIZE))
   }
 
-  fn read_bitmap(bitmap: windows::Win32::Graphics::Gdi::HBITMAP, bits: u16) -> Option<Vec<u8>> {
+  struct Pixels {
+    bgra: Vec<u8>,
+    width: usize,
+    height: usize,
+  }
+
+  fn bitmap_size(bitmap: windows::Win32::Graphics::Gdi::HBITMAP) -> Option<(usize, usize)> {
+    let mut info = BITMAP::default();
+    let written = unsafe {
+      GetObjectW(
+        HGDIOBJ(bitmap.0),
+        std::mem::size_of::<BITMAP>() as i32,
+        Some(&mut info as *mut BITMAP as *mut std::ffi::c_void),
+      )
+    };
+    if written == 0 || info.bmWidth <= 0 || info.bmHeight <= 0 {
+      return None;
+    }
+    Some((info.bmWidth as usize, info.bmHeight as usize))
+  }
+
+  fn read_bitmap(bitmap: windows::Win32::Graphics::Gdi::HBITMAP) -> Option<Pixels> {
     if bitmap.is_invalid() {
       return None;
     }
+    let (width, height) = bitmap_size(bitmap)?;
     let mut header = BITMAPINFO {
       bmiHeader: BITMAPINFOHEADER {
         biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32,
-        biWidth: ICON_SIZE as i32,
-        biHeight: -(ICON_SIZE as i32),
+        biWidth: width as i32,
+        biHeight: -(height as i32),
         biPlanes: 1,
-        biBitCount: bits,
+        biBitCount: 32,
         biCompression: BI_RGB.0,
         ..Default::default()
       },
       ..Default::default()
     };
-    let mut buffer = vec![0u8; ICON_SIZE * ICON_SIZE * 4];
+    let mut buffer = vec![0u8; width * height * 4];
     let dc = unsafe { GetDC(None) };
     let lines = unsafe {
       GetDIBits(
         dc,
         bitmap,
         0,
-        ICON_SIZE as u32,
+        height as u32,
         Some(buffer.as_mut_ptr() as *mut std::ffi::c_void),
         &mut header,
         DIB_RGB_COLORS,
@@ -200,7 +229,47 @@ mod win {
     unsafe {
       ReleaseDC(None, dc);
     }
-    (lines > 0).then_some(buffer)
+    (lines > 0).then_some(Pixels {
+      bgra: buffer,
+      width,
+      height,
+    })
+  }
+
+  fn resample(rgba: &[u8], width: usize, height: usize, size: usize) -> Vec<u8> {
+    if width == size && height == size {
+      return rgba.to_vec();
+    }
+    let mut out = vec![0u8; size * size * 4];
+    for y in 0..size {
+      let y0 = y * height / size;
+      let y1 = ((y + 1) * height / size).max(y0 + 1).min(height);
+      for x in 0..size {
+        let x0 = x * width / size;
+        let x1 = ((x + 1) * width / size).max(x0 + 1).min(width);
+        let mut sum = [0u64; 4];
+        let mut count = 0u64;
+        for sy in y0..y1 {
+          for sx in x0..x1 {
+            let px = &rgba[(sy * width + sx) * 4..(sy * width + sx) * 4 + 4];
+            let alpha = px[3] as u64;
+            sum[0] += px[0] as u64 * alpha;
+            sum[1] += px[1] as u64 * alpha;
+            sum[2] += px[2] as u64 * alpha;
+            sum[3] += alpha;
+            count += 1;
+          }
+        }
+        let target = &mut out[(y * size + x) * 4..(y * size + x) * 4 + 4];
+        if sum[3] > 0 {
+          target[0] = (sum[0] / sum[3]) as u8;
+          target[1] = (sum[1] / sum[3]) as u8;
+          target[2] = (sum[2] / sum[3]) as u8;
+          target[3] = (sum[3] / count) as u8;
+        }
+      }
+    }
+    out
   }
 }
 

@@ -42,6 +42,8 @@ export type PaneCommand =
   | 'transfer'
   | 'newFolder'
   | 'selectAll'
+  | 'copy'
+  | 'paste'
   | 'refresh'
   | 'historyBack'
   | 'historyForward'
@@ -67,6 +69,8 @@ export const paneKeymap = createKeymap<PaneCommand>({
   transfer: {keys: 'F6', inInputs: true},
   newFolder: {keys: 'F7', inInputs: true},
   selectAll: 'Ctrl+A',
+  copy: 'Ctrl+C',
+  paste: 'Ctrl+V',
   refresh: {keys: ['F5', 'Ctrl+R'], inInputs: true},
   historyBack: 'Alt+Left',
   historyForward: 'Alt+Right'

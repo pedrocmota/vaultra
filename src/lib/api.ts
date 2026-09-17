@@ -10,7 +10,7 @@ export type ConflictPolicy =
 export type ConflictAction = Exclude<ConflictPolicy, 'ask'>
 export type Theme = 'dark' | 'light' | 'system'
 export type SymlinkDownload = 'follow' | 'copy_link'
-export type Direction = 'download' | 'upload'
+export type Direction = 'download' | 'upload' | 'copy'
 export type TransferStatus = 'queued' | 'active' | 'paused' | 'failed' | 'done' | 'skipped'
 export type PromptKind = 'secret' | 'confirm' | 'host_key' | 'info'
 export type LogKind = 'status' | 'command' | 'response' | 'error' | 'trace'
@@ -163,7 +163,10 @@ export interface TransferItem {
   speedBps: number,
   followSymlink: boolean,
   conflictPolicy: ConflictPolicy | null,
-  linkTarget: string | null
+  linkTarget: string | null,
+  batch: string | null,
+  targetSessionId: string | null,
+  targetPath: string | null
 }
 
 export interface QueueSnapshot {
@@ -192,7 +195,35 @@ export interface QueueRequest {
   followSymlink?: boolean,
   conflictPolicy?: ConflictPolicy | null,
   startPaused?: boolean,
-  linkTarget?: string | null
+  linkTarget?: string | null,
+  batch?: string | null,
+  targetSessionId?: string | null,
+  targetPath?: string | null
+}
+
+export interface ClipboardFiles {
+  sequence: number,
+  paths: string[],
+  cut: boolean,
+  token: string | null
+}
+
+export interface CopyItem {
+  source: string,
+  destination: string
+}
+
+export interface DragOutRequest {
+  localPaths?: string[],
+  downloads?: QueueRequest[]
+}
+
+export type DragOutcome = 'dropped' | 'cancelled'
+export type DropEffect = 'none' | 'copy' | 'move' | 'link'
+
+export interface DragOutResult {
+  outcome: DragOutcome,
+  effect: DropEffect
 }
 
 export interface ProgressEvent {
@@ -435,6 +466,12 @@ export const api = {
   localRename: (from: string, to: string) => invoke<void>('local_rename', {from, to}),
   localDelete: (paths: string[]) => invoke<void>('local_delete', {paths}),
   localResolveLink: (path: string) => invoke<LinkTarget>('local_resolve_link', {path}),
+  localCopy: (items: CopyItem[], overwrite: boolean) =>
+    invoke<void>('local_copy', {items, overwrite}),
+  clipboardWrite: (text: string, files: string[] | null, token: string) =>
+    invoke<number>('clipboard_write', {text, files, token}),
+  clipboardReadFiles: () => invoke<ClipboardFiles>('clipboard_read_files'),
+  dragOut: (request: DragOutRequest) => invoke<DragOutResult>('drag_out', {request}),
   queueAdd: (requests: QueueRequest[]) => invoke<string[]>('queue_add', {requests}),
   queueSnapshot: () => invoke<QueueSnapshot>('queue_snapshot'),
   queueStats: () => invoke<QueueStats>('queue_stats'),

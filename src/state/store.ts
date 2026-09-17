@@ -116,6 +116,42 @@ export const defaultColumns: ColumnWidths = {
   target: 200
 }
 
+function dialogKey(dialog: Dialog): string | null {
+  switch (dialog.kind) {
+    case 'editChanged':
+      return `editChanged:${dialog.event.localPath.toLowerCase()}`
+    case 'prompt':
+      return `prompt:${dialog.prompt.promptId}`
+    case 'conflict':
+      return `conflict:${dialog.prompt.itemId}`
+    case 'password':
+    case 'hostKeyChanged':
+    case 'certificate':
+    case 'sync':
+      return `${dialog.kind}:${dialog.tabId}`
+    case 'siteManager':
+    case 'settings':
+    case 'about':
+      return dialog.kind
+    default:
+      return null
+  }
+}
+
+export function mergeDialog(dialogs: Dialog[], dialog: Dialog): Dialog[] {
+  const key = dialogKey(dialog)
+  const index = key === null ? -1 : dialogs.findIndex((open) => dialogKey(open) === key)
+
+  if (index < 0) {
+    return [...dialogs, dialog]
+  }
+
+  const merged = dialogs.slice()
+  merged[index] = dialog
+
+  return merged
+}
+
 export function createPane(path = ''): PaneState {
   return {
     path,
@@ -306,7 +342,7 @@ export const useStore = create<AppStore>((set) => ({
     }),
   clearLogs: () => set({logs: []}),
   setShowTrace: (showTrace) => set({showTrace}),
-  openDialog: (dialog) => set((state) => ({dialogs: [...state.dialogs, dialog]})),
+  openDialog: (dialog) => set((state) => ({dialogs: mergeDialog(state.dialogs, dialog)})),
   closeDialog: () => set((state) => ({dialogs: state.dialogs.slice(0, -1)})),
   closeDialogWhere: (predicate) =>
     set((state) => ({

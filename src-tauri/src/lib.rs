@@ -1,6 +1,8 @@
 pub mod askpass;
+mod clipboard;
 mod commands;
 mod credentials;
+mod drag_out;
 mod edit;
 pub mod error;
 mod icons;
@@ -17,6 +19,7 @@ mod transfer;
 use commands::AppState;
 use std::sync::Arc;
 use tauri::Manager;
+use tauri_plugin_window_state::StateFlags;
 
 pub fn run() {
   if askpass::maybe_run_askpass_client() {
@@ -24,11 +27,16 @@ pub fn run() {
   }
   let _log_guard = logging::init_file_logging();
   let _ = rustls::crypto::ring::default_provider().install_default();
+  paths::clear_drag_temp();
 
   tauri::Builder::default()
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_opener::init())
-    .plugin(tauri_plugin_window_state::Builder::default().build())
+    .plugin(
+      tauri_plugin_window_state::Builder::default()
+        .with_state_flags(StateFlags::all() & !StateFlags::VISIBLE)
+        .build(),
+    )
     .setup(|app| {
       let handle = app.handle().clone();
       let credentials: Arc<dyn credentials::CredentialStore> =
@@ -46,6 +54,7 @@ pub fn run() {
       let queue = transfer::TransferQueue::new(handle.clone(), sessions.clone(), settings.clone());
       let editor = Arc::new(edit::EditManager::new(handle.clone()));
       let icons = Arc::new(icons::IconCache::default());
+      drag_out::install(&handle);
       app.manage(AppState {
         sites,
         settings,
@@ -65,6 +74,7 @@ pub fn run() {
         tauri::async_runtime::block_on(async move {
           sessions.disconnect_all().await;
         });
+        paths::clear_drag_temp();
       }
     })
     .invoke_handler(tauri::generate_handler![
@@ -101,6 +111,10 @@ pub fn run() {
       commands::local_rename,
       commands::local_delete,
       commands::local_resolve_link,
+      commands::local_copy,
+      commands::clipboard_write,
+      commands::clipboard_read_files,
+      commands::drag_out,
       commands::queue_add,
       commands::queue_snapshot,
       commands::queue_stats,

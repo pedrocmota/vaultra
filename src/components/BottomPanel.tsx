@@ -96,6 +96,31 @@ function statusLabel(t: ReturnType<typeof useT>, item: TransferItem): string {
   return t(`status.${item.status}` as const)
 }
 
+function directionLabel(t: ReturnType<typeof useT>, item: TransferItem): string {
+  switch (item.direction) {
+    case 'download':
+      return `↓ ${t('dir.download')}`
+    case 'upload':
+      return `↑ ${t('dir.upload')}`
+    default:
+      return `⇄ ${t('dir.copy')}`
+  }
+}
+
+function itemName(item: TransferItem): string {
+  return basename(item.direction === 'upload' ? item.localPath : item.remotePath)
+}
+
+function itemTitle(item: TransferItem): string {
+  if (item.direction === 'copy') {
+    return `${item.remotePath}
+${item.targetPath ?? ''}`
+  }
+
+  return `${item.localPath}
+${item.remotePath}`
+}
+
 function QueueTable({
   items,
   emptyText,
@@ -195,17 +220,13 @@ function QueueTable({
                 className={selected === item.id ? 'selected' : ''}
                 onClick={() => setSelected(item.id)}
                 onContextMenu={(e) => openMenu(e, item, index)}
-                title={`${item.localPath}\n${item.remotePath}`}
+                title={itemTitle(item)}
               >
                 <td>
                   {item.isDir ? '📁 ' : ''}
-                  {basename(item.direction === 'download' ? item.remotePath : item.localPath)}
+                  {itemName(item)}
                 </td>
-                <td>
-                  {item.direction === 'download'
-                    ? '↓ ' + t('dir.download')
-                    : '↑ ' + t('dir.upload')}
-                </td>
+                <td>{directionLabel(t, item)}</td>
                 <td>{item.siteName}</td>
                 <td className="num">{item.isDir ? '' : formatBytes(item.size)}</td>
                 <td>
@@ -259,9 +280,9 @@ function HistoryTable({items}: {items: TransferItem[]}) {
       </thead>
       <tbody>
         {items.map((item) => (
-          <tr key={item.id} title={`${item.localPath}\n${item.remotePath}`}>
-            <td>{basename(item.direction === 'download' ? item.remotePath : item.localPath)}</td>
-            <td>{item.direction === 'download' ? t('dir.download') : t('dir.upload')}</td>
+          <tr key={item.id} title={itemTitle(item)}>
+            <td>{itemName(item)}</td>
+            <td>{directionLabel(t, item)}</td>
             <td>{item.siteName}</td>
             <td className="num">{item.isDir ? '' : formatBytes(item.size)}</td>
             <td>{t(`status.${item.status}` as const)}</td>

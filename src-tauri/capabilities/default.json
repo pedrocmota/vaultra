@@ -12,6 +12,8 @@
     "core:window:allow-close",
     "core:window:allow-toggle-maximize",
     "core:window:allow-set-theme",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
     "core:webview:allow-internal-toggle-devtools",
     "dialog:default",
     "opener:default"

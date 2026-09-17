@@ -145,6 +145,19 @@ button.danger {
   border-color: var(--danger);
   color: #fff;
 }
+button.outline {
+  background: transparent;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+button.outline:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+button.outline:focus {
+  outline: none;
+  background: var(--accent-soft);
+}
 button.ghost {
   background: transparent;
   border-color: transparent;
@@ -539,6 +552,10 @@ label {
   padding: 24px;
   color: var(--text-muted);
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
 }
 .filelist .loading-bar {
   position: absolute;
