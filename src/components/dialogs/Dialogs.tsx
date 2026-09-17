@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { Modal } from '@/components/Modal'
+import {useEffect, useRef, useState} from 'react'
+import {Modal} from '@/components/Modal'
 import type {
   ConflictAction,
   ConflictPrompt,
@@ -9,7 +9,7 @@ import type {
   UiPrompt,
   UntrustedCertificateDetail
 } from '@/lib/api'
-import { basename, formatBytes, formatDate } from '@/lib/format'
+import {basename, formatBytes, formatDate} from '@/lib/format'
 import {
   acceptCertificate,
   acceptChangedHostKey,
@@ -18,11 +18,11 @@ import {
   connectSite,
   uploadEditedFile
 } from '@/state/actions'
-import { useStore, useT, type Dialog } from '@/state/store'
-import { PermissionsDialog } from './PermissionsDialog'
-import { SettingsDialog } from './SettingsDialog'
-import { SiteManager } from './SiteManager'
-import { SyncDialog } from './SyncDialog'
+import {useStore, useT, type Dialog} from '@/state/store'
+import {PermissionsDialog} from './PermissionsDialog'
+import {SettingsDialog} from './SettingsDialog'
+import {SiteManager} from './SiteManager'
+import {SyncDialog} from './SyncDialog'
 
 export function Dialogs() {
   const dialogs = useStore((s) => s.dialogs)
@@ -36,7 +36,7 @@ export function Dialogs() {
   return <DialogSwitch key={dialogs.length} dialog={dialog} close={closeDialog} />
 }
 
-function DialogSwitch({ dialog, close }: { dialog: Dialog, close: () => void }) {
+function DialogSwitch({dialog, close}: {dialog: Dialog, close: () => void}) {
   switch (dialog.kind) {
     case 'prompt':
       return <PromptDialog prompt={dialog.prompt} close={close} />
@@ -103,7 +103,7 @@ function DialogSwitch({ dialog, close }: { dialog: Dialog, close: () => void }) 
   }
 }
 
-function PromptDialog({ prompt, close }: { prompt: UiPrompt, close: () => void }) {
+function PromptDialog({prompt, close}: {prompt: UiPrompt, close: () => void}) {
   const t = useT()
   const [value, setValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -173,7 +173,7 @@ function PromptDialog({ prompt, close }: { prompt: UiPrompt, close: () => void }
 
   return (
     <Modal
-      title={siteName ? t('prompt.passwordFor', { target: siteName }) : t('prompt.password')}
+      title={siteName ? t('prompt.passwordFor', {target: siteName}) : t('prompt.password')}
       onClose={() => answer(null)}
       footer={
         <>
@@ -215,12 +215,12 @@ function PasswordDialog({
   useEffect(() => inputRef.current?.focus(), [])
   const submit = () => {
     close()
-    void connectSite(site, { tabId, password: value })
+    void connectSite(site, {tabId, password: value})
   }
 
   return (
     <Modal
-      title={t('prompt.passwordFor', { target: `${site.user ? `${site.user}@` : ''}${site.host}` })}
+      title={t('prompt.passwordFor', {target: `${site.user ? `${site.user}@` : ''}${site.host}`})}
       onClose={close}
       footer={
         <>
@@ -360,7 +360,7 @@ function CertificateDialog({
   )
 }
 
-function ConflictDialog({ prompt, close }: { prompt: ConflictPrompt, close: () => void }) {
+function ConflictDialog({prompt, close}: {prompt: ConflictPrompt, close: () => void}) {
   const t = useT()
   const language = useStore((s) => s.language)
   const [applyAll, setApplyAll] = useState(false)
@@ -480,7 +480,7 @@ function InputDialog({
         </>
       }
     >
-      <label style={{ flexDirection: 'column', alignItems: 'stretch' }}>
+      <label style={{flexDirection: 'column', alignItems: 'stretch'}}>
         <span className="hint">{label}</span>
         <input
           ref={inputRef}
@@ -540,7 +540,7 @@ function ConfirmDialog({
   )
 }
 
-function AboutDialog({ close }: { close: () => void }) {
+function AboutDialog({close}: {close: () => void}) {
   const t = useT()
   const system = useStore((s) => s.system)
 
@@ -571,7 +571,7 @@ function AboutDialog({ close }: { close: () => void }) {
   )
 }
 
-function EditChangedDialog({ event, close }: { event: EditedFileChanged, close: () => void }) {
+function EditChangedDialog({event, close}: {event: EditedFileChanged, close: () => void}) {
   const t = useT()
 
   return (
@@ -593,7 +593,7 @@ function EditChangedDialog({ event, close }: { event: EditedFileChanged, close: 
         </>
       }
     >
-      <p>{t('edit.changedMessage', { name: basename(event.remotePath) })}</p>
+      <p>{t('edit.changedMessage', {name: basename(event.remotePath)})}</p>
       <div className="mono">{event.remotePath}</div>
     </Modal>
   )

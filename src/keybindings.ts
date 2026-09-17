@@ -1,13 +1,24 @@
-import { createKeymap } from '@/lib/keymap'
+import {createKeymap} from '@/lib/keymap'
 
-export type GlobalCommand = 'newTab' | 'closeTab' | 'siteManager' | 'nextTab' | 'previousTab'
+export type GlobalCommand =
+  | 'newTab'
+  | 'closeTab'
+  | 'siteManager'
+  | 'nextTab'
+  | 'previousTab'
+  | 'refresh'
 
 export const globalKeymap = createKeymap<GlobalCommand>({
   newTab: 'Ctrl+T',
   closeTab: 'Ctrl+W',
   siteManager: 'Ctrl+S',
   nextTab: 'Ctrl+Tab',
-  previousTab: 'Ctrl+Shift+Tab'
+  previousTab: 'Ctrl+Shift+Tab',
+  refresh: ['F5', 'Ctrl+R']
+})
+
+export const browserShortcuts = createKeymap<'blocked'>({
+  blocked: ['F3', 'F5', 'F7', 'Ctrl+R', 'Ctrl+Shift+R', 'Ctrl+F', 'Ctrl+P', 'Ctrl+U', 'Ctrl+S']
 })
 
 export type PaneCommand =
@@ -51,12 +62,12 @@ export const paneKeymap = createKeymap<PaneCommand>({
   open: 'Enter',
   goUp: 'Backspace',
   delete: 'Del',
-  rename: { keys: 'F2', inInputs: true },
-  viewEdit: { keys: 'F3', inInputs: true },
-  transfer: { keys: 'F5', inInputs: true },
-  newFolder: { keys: 'F7', inInputs: true },
+  rename: {keys: 'F2', inInputs: true},
+  viewEdit: {keys: 'F3', inInputs: true},
+  transfer: {keys: 'F6', inInputs: true},
+  newFolder: {keys: 'F7', inInputs: true},
   selectAll: 'Ctrl+A',
-  refresh: 'Ctrl+R',
+  refresh: {keys: ['F5', 'Ctrl+R'], inInputs: true},
   historyBack: 'Alt+Left',
   historyForward: 'Alt+Right'
 })

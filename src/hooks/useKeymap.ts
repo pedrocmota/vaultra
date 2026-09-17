@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react'
-import type { CommandHandlers, Keymap } from '@/lib/keymap'
+import {useEffect, useRef} from 'react'
+import type {CommandHandlers, Keymap} from '@/lib/keymap'
 
 export function useGlobalKeymap<C extends string>(
   keymap: Keymap<C>,
@@ -22,4 +22,18 @@ export function useGlobalKeymap<C extends string>(
 
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [keymap, enabled])
+}
+
+export function useBrowserShortcutGuard(keymap: Keymap<string>): void {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (keymap.matches(event)) {
+        event.preventDefault()
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [keymap])
 }

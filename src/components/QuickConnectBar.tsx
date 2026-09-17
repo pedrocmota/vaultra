@@ -1,7 +1,7 @@
-import { useState } from 'react'
-import { defaultPort, defaultSite, type Protocol } from '@/lib/api'
-import { connectSite } from '@/state/actions'
-import { useT } from '@/state/store'
+import {useState} from 'react'
+import {defaultPort, defaultSite, type Protocol} from '@/lib/api'
+import {connectSite} from '@/state/actions'
+import {useT} from '@/state/store'
 
 export function QuickConnectBar() {
   const t = useT()
@@ -10,11 +10,11 @@ export function QuickConnectBar() {
   const [port, setPort] = useState('')
   const [user, setUser] = useState('')
   const [password, setPassword] = useState('')
-  const protocols: { value: Protocol, label: string }[] = [
-    { value: 'sftp', label: t('proto.sftp') },
-    { value: 'ftp', label: t('proto.ftp') },
-    { value: 'ftps_explicit', label: t('proto.ftpsExplicit') },
-    { value: 'ftps_implicit', label: t('proto.ftpsImplicit') }
+  const protocols: {value: Protocol, label: string}[] = [
+    {value: 'sftp', label: t('proto.sftp')},
+    {value: 'ftp', label: t('proto.ftp')},
+    {value: 'ftps_explicit', label: t('proto.ftpsExplicit')},
+    {value: 'ftps_implicit', label: t('proto.ftpsImplicit')}
   ]
 
   const connect = () => {

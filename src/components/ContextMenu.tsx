@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {useEffect, useLayoutEffect, useRef, useState} from 'react'
 
 export interface MenuItem {
   label?: string,
@@ -18,9 +18,9 @@ interface Props {
   onClose: () => void
 }
 
-export function ContextMenu({ x, y, items, onClose }: Props) {
+export function ContextMenu({x, y, items, onClose}: Props) {
   const ref = useRef<HTMLDivElement>(null)
-  const [position, setPosition] = useState({ left: x, top: y })
+  const [position, setPosition] = useState({left: x, top: y})
 
   useLayoutEffect(() => {
     const element = ref.current
@@ -32,7 +32,7 @@ export function ContextMenu({ x, y, items, onClose }: Props) {
     const rect = element.getBoundingClientRect()
     const left = Math.min(x, window.innerWidth - rect.width - 4)
     const top = Math.min(y, window.innerHeight - rect.height - 4)
-    setPosition({ left: Math.max(0, left), top: Math.max(0, top) })
+    setPosition({left: Math.max(0, left), top: Math.max(0, top)})
   }, [x, y])
 
   useEffect(() => {

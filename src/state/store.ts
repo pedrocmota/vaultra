@@ -1,5 +1,5 @@
-import { create } from 'zustand'
-import { type Language, type MessageKey, normalizeLanguage, translate } from '@/i18n'
+import {create} from 'zustand'
+import {type Language, type MessageKey, normalizeLanguage, translate} from '@/i18n'
 import type {
   AppSettings,
   ConflictPrompt,
@@ -15,7 +15,7 @@ import type {
   UiPrompt,
   UntrustedCertificateDetail
 } from '@/lib/api'
-import type { Entry, SortSpec } from '@/lib/entries'
+import type {Entry, SortSpec} from '@/lib/entries'
 
 export type PaneSide = 'local' | 'remote'
 
@@ -26,6 +26,11 @@ export interface ColumnWidths {
   permissions: number,
   owner: number,
   target: number
+}
+
+export interface PaneSelection {
+  cursor: string | null,
+  selected: string[]
 }
 
 export interface PaneState {
@@ -50,49 +55,49 @@ export interface Tab {
   remote: PaneState,
   local: PaneState,
   syncBrowsing: boolean,
-  syncBase: { local: string, remote: string } | null
+  syncBase: {local: string, remote: string} | null
 }
 
 export type Dialog =
-  | { kind: 'prompt', prompt: UiPrompt }
-  | { kind: 'password', site: SiteConfig, tabId: string }
+  | {kind: 'prompt', prompt: UiPrompt}
+  | {kind: 'password', site: SiteConfig, tabId: string}
   | {
-      kind: 'hostKeyChanged',
-      detail: HostKeyChangedDetail,
-      site: SiteConfig,
-      tabId: string,
-      password: string | null
-    }
+    kind: 'hostKeyChanged',
+    detail: HostKeyChangedDetail,
+    site: SiteConfig,
+    tabId: string,
+    password: string | null
+  }
   | {
-      kind: 'certificate',
-      detail: UntrustedCertificateDetail,
-      site: SiteConfig,
-      tabId: string,
-      password: string | null
-    }
-  | { kind: 'conflict', prompt: ConflictPrompt }
+    kind: 'certificate',
+    detail: UntrustedCertificateDetail,
+    site: SiteConfig,
+    tabId: string,
+    password: string | null
+  }
+  | {kind: 'conflict', prompt: ConflictPrompt}
   | {
-      kind: 'input',
-      title: string,
-      label: string,
-      initial: string,
-      selectStem?: boolean,
-      onSubmit: (value: string) => void | Promise<void>
-    }
+    kind: 'input',
+    title: string,
+    label: string,
+    initial: string,
+    selectStem?: boolean,
+    onSubmit: (value: string) => void | Promise<void>
+  }
   | {
-      kind: 'confirm',
-      title: string,
-      message: string,
-      danger?: boolean,
-      confirmLabel?: string,
-      onConfirm: () => void | Promise<void>
-    }
-  | { kind: 'permissions', tabId: string, entries: Entry[] }
-  | { kind: 'siteManager', selectId?: string }
-  | { kind: 'settings' }
-  | { kind: 'sync', tabId: string }
-  | { kind: 'about' }
-  | { kind: 'editChanged', event: EditedFileChanged }
+    kind: 'confirm',
+    title: string,
+    message: string,
+    danger?: boolean,
+    confirmLabel?: string,
+    onConfirm: () => void | Promise<void>
+  }
+  | {kind: 'permissions', tabId: string, entries: Entry[]}
+  | {kind: 'siteManager', selectId?: string}
+  | {kind: 'settings'}
+  | {kind: 'sync', tabId: string}
+  | {kind: 'about'}
+  | {kind: 'editChanged', event: EditedFileChanged}
 
 export interface Toast {
   id: string,
@@ -119,11 +124,11 @@ export function createPane(path = ''): PaneState {
     error: null,
     selected: [],
     cursor: null,
-    sort: { key: 'name', direction: 'asc' },
+    sort: {key: 'name', direction: 'asc'},
     history: path ? [path] : [],
     historyIndex: path ? 0 : -1,
     filter: '',
-    columns: { ...defaultColumns }
+    columns: {...defaultColumns}
   }
 }
 
@@ -144,7 +149,7 @@ export const defaultSettings: AppSettings = {
   theme: 'dark',
   language: 'pt-BR',
   defaultConflictPolicy: 'ask',
-  cacheTtlSecs: 60,
+  cacheTtlSecs: 1,
   defaultLocalDir: '',
   showHidden: false,
   localPaneLeft: true,
@@ -178,6 +183,7 @@ export interface AppStore {
   toasts: Toast[],
   bottomTab: BottomTab,
   bottomHeight: number,
+  paneSplit: number,
   setSettings: (settings: AppSettings) => void,
   setSites: (sites: SiteTree) => void,
   setSystem: (system: SystemInfo) => void,
@@ -203,29 +209,31 @@ export interface AppStore {
   pushToast: (text: string, kind?: Toast['kind']) => void,
   dismissToast: (id: string) => void,
   setBottomTab: (tab: BottomTab) => void,
-  setBottomHeight: (height: number) => void
+  setBottomHeight: (height: number) => void,
+  setPaneSplit: (ratio: number) => void
 }
 
 export const useStore = create<AppStore>((set) => ({
   settings: defaultSettings,
   language: 'pt-BR',
-  sites: { root: [] },
+  sites: {root: []},
   system: null,
   tabs: [],
   activeTabId: '',
   focusedPane: 'remote',
-  queue: { items: [], history: [] },
-  stats: { active: 0, queued: 0, failed: 0, paused: 0, speedBps: 0, remainingBytes: 0 },
+  queue: {items: [], history: []},
+  stats: {active: 0, queued: 0, failed: 0, paused: 0, speedBps: 0, remainingBytes: 0},
   logs: [],
   showTrace: false,
   dialogs: [],
   toasts: [],
   bottomTab: 'queue',
   bottomHeight: 200,
-  setSettings: (settings) => set({ settings, language: normalizeLanguage(settings.language) }),
-  setSites: (sites) => set({ sites }),
-  setSystem: (system) => set({ system }),
-  addTab: (tab) => set((state) => ({ tabs: [...state.tabs, tab], activeTabId: tab.id })),
+  paneSplit: 0.5,
+  setSettings: (settings) => set({settings, language: normalizeLanguage(settings.language)}),
+  setSites: (sites) => set({sites}),
+  setSystem: (system) => set({system}),
+  addTab: (tab) => set((state) => ({tabs: [...state.tabs, tab], activeTabId: tab.id})),
   removeTab: (tabId) =>
     set((state) => {
       const index = state.tabs.findIndex((t) => t.id === tabId)
@@ -237,9 +245,9 @@ export const useStore = create<AppStore>((set) => ({
         activeTabId = next ? next.id : ''
       }
 
-      return { tabs, activeTabId }
+      return {tabs, activeTabId}
     }),
-  setActiveTab: (activeTabId) => set({ activeTabId }),
+  setActiveTab: (activeTabId) => set({activeTabId}),
   updateTab: (tabId, patch) =>
     set((state) => ({
       tabs: state.tabs.map((tab) =>
@@ -261,12 +269,12 @@ export const useStore = create<AppStore>((set) => ({
         const pane = tab[side]
         const next = typeof patch === 'function' ? patch(pane) : patch
 
-        return { ...tab, [side]: { ...pane, ...next } }
+        return {...tab, [side]: {...pane, ...next}}
       })
     })),
-  setFocusedPane: (focusedPane) => set({ focusedPane }),
-  setQueue: (queue) => set({ queue }),
-  setStats: (stats) => set({ stats }),
+  setFocusedPane: (focusedPane) => set({focusedPane}),
+  setQueue: (queue) => set({queue}),
+  setStats: (stats) => set({stats}),
   applyProgress: (event) =>
     set((state) => {
       const index = state.queue.items.findIndex((i) => i.id === event.id)
@@ -284,7 +292,7 @@ export const useStore = create<AppStore>((set) => ({
         size: event.size ?? item.size
       }
 
-      return { queue: { ...state.queue, items } }
+      return {queue: {...state.queue, items}}
     }),
   appendLog: (message) =>
     set((state) => {
@@ -294,24 +302,25 @@ export const useStore = create<AppStore>((set) => ({
           : state.logs.slice()
       logs.push(message)
 
-      return { logs }
+      return {logs}
     }),
-  clearLogs: () => set({ logs: [] }),
-  setShowTrace: (showTrace) => set({ showTrace }),
-  openDialog: (dialog) => set((state) => ({ dialogs: [...state.dialogs, dialog] })),
-  closeDialog: () => set((state) => ({ dialogs: state.dialogs.slice(0, -1) })),
+  clearLogs: () => set({logs: []}),
+  setShowTrace: (showTrace) => set({showTrace}),
+  openDialog: (dialog) => set((state) => ({dialogs: [...state.dialogs, dialog]})),
+  closeDialog: () => set((state) => ({dialogs: state.dialogs.slice(0, -1)})),
   closeDialogWhere: (predicate) =>
     set((state) => ({
       dialogs: state.dialogs.filter((d) => !predicate(d))
     })),
   pushToast: (text, kind = 'error') =>
     set((state) => ({
-      toasts: [...state.toasts, { id: crypto.randomUUID(), text, kind }].slice(-5)
+      toasts: [...state.toasts, {id: crypto.randomUUID(), text, kind}].slice(-5)
     })),
-  dismissToast: (id) => set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
-  setBottomTab: (bottomTab) => set({ bottomTab }),
+  dismissToast: (id) => set((state) => ({toasts: state.toasts.filter((t) => t.id !== id)})),
+  setBottomTab: (bottomTab) => set({bottomTab}),
   setBottomHeight: (bottomHeight) =>
-    set({ bottomHeight: Math.max(90, Math.min(600, bottomHeight)) })
+    set({bottomHeight: Math.max(90, Math.min(600, bottomHeight))}),
+  setPaneSplit: (paneSplit) => set({paneSplit: Math.max(0.2, Math.min(0.8, paneSplit))})
 }))
 
 export function useT() {

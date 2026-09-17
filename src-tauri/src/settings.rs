@@ -48,7 +48,7 @@ impl Default for AppSettings {
       theme: Theme::Dark,
       language: "pt-BR".into(),
       default_conflict_policy: ConflictPolicy::Ask,
-      cache_ttl_secs: 60,
+      cache_ttl_secs: 1,
       default_local_dir: String::new(),
       show_hidden: false,
       local_pane_left: true,

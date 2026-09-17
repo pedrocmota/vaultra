@@ -1,5 +1,5 @@
-import { listen } from '@tauri-apps/api/event'
-import { open as openFileDialog } from '@tauri-apps/plugin-dialog'
+import {listen} from '@tauri-apps/api/event'
+import {open as openFileDialog} from '@tauri-apps/plugin-dialog'
 import {
   api,
   describeError,
@@ -18,7 +18,7 @@ import {
   type Theme,
   type UiPrompt
 } from '@/lib/api'
-import { fromLocal, fromRemote, isDirLike, isLink, type Entry } from '@/lib/entries'
+import {fromLocal, fromRemote, isDirLike, isExecutable, isLink, type Entry} from '@/lib/entries'
 import {
   basename,
   buildUrl,
@@ -28,7 +28,9 @@ import {
   relativeLocal,
   relativeRemote
 } from '@/lib/format'
-import { activeTab, createTab, t, tabById, useStore, type PaneSide, type Tab } from './store'
+import {selectionAfterNavigation} from './selectionMemory'
+import {activeTab, createTab, t, tabById, useStore, type PaneSide, type Tab} from './store'
+import {createTransferRefresher} from './transferRefresh'
 
 const store = useStore
 
@@ -79,20 +81,25 @@ export async function bootstrap() {
 async function subscribeEvents() {
   await listen<LogMessage>('log', (event) => store.getState().appendLog(event.payload))
   await listen<UiPrompt>('auth-prompt', (event) =>
-    store.getState().openDialog({ kind: 'prompt', prompt: event.payload })
+    store.getState().openDialog({kind: 'prompt', prompt: event.payload})
   )
   await listen<ConflictPrompt>('conflict-prompt', (event) =>
-    store.getState().openDialog({ kind: 'conflict', prompt: event.payload })
+    store.getState().openDialog({kind: 'conflict', prompt: event.payload})
   )
-  await listen<QueueSnapshot>('queue-changed', (event) => store.getState().setQueue(event.payload))
+  await listen<QueueSnapshot>('queue-changed', (event) => {
+    refreshCompletedTransfers(store.getState().queue.history, event.payload.history)
+    store.getState().setQueue(event.payload)
+  })
   await listen<QueueStats>('queue-stats', (event) => store.getState().setStats(event.payload))
   await listen<ProgressEvent>('transfer-progress', (event) =>
     store.getState().applyProgress(event.payload)
   )
   await listen<EditedFileChanged>('edited-file-changed', (event) =>
-    store.getState().openDialog({ kind: 'editChanged', event: event.payload })
+    store.getState().openDialog({kind: 'editChanged', event: event.payload})
   )
 }
+
+const refreshCompletedTransfers = createTransferRefresher(refresh, () => store.getState().tabs)
 
 export function toastError(error: unknown) {
   store.getState().pushToast(describeError(error), 'error')
@@ -104,7 +111,7 @@ export async function newTab(): Promise<Tab> {
   const localPath = current?.local.path || settings.defaultLocalDir || (await api.localHome())
   const tab = createTab(localPath)
   store.getState().addTab(tab)
-  await navigate(tab.id, 'local', localPath, { pushHistory: false })
+  await navigate(tab.id, 'local', localPath, {pushHistory: false})
 
   return tab
 }
@@ -137,7 +144,7 @@ export async function disconnectTab(tabId: string) {
   await api.sessionDisconnect(tab.sessionId).catch(() => undefined)
   store
     .getState()
-    .updateTab(tabId, { sessionId: null, site: null, syncBrowsing: false, syncBase: null })
+    .updateTab(tabId, {sessionId: null, site: null, syncBrowsing: false, syncBase: null})
   store
     .getState()
     .updatePane(tabId, 'remote', {
@@ -156,7 +163,7 @@ interface ConnectOptions {
   password?: string | null,
   acceptNewHostkey?: boolean,
   remember?: boolean,
-  bookmark?: { localDir: string, remoteDir: string, syncBrowsing: boolean } | null
+  bookmark?: {localDir: string, remoteDir: string, syncBrowsing: boolean} | null
 }
 
 export async function connectSite(site: SiteConfig, options: ConnectOptions = {}) {
@@ -170,7 +177,7 @@ export async function connectSite(site: SiteConfig, options: ConnectOptions = {}
   tabId = tab.id
 
   if (site.logonType === 'ask' && options.password === undefined) {
-    store.getState().openDialog({ kind: 'password', site, tabId })
+    store.getState().openDialog({kind: 'password', site, tabId})
 
     return
   }
@@ -183,15 +190,15 @@ export async function connectSite(site: SiteConfig, options: ConnectOptions = {}
       syncBrowsing: options.bookmark.syncBrowsing
     }
     : site
-  store.getState().updateTab(tabId, { connecting: true, site: effectiveSite })
-  store.getState().updatePane(tabId, 'remote', { error: null, entries: [], path: '' })
+  store.getState().updateTab(tabId, {connecting: true, site: effectiveSite})
+  store.getState().updatePane(tabId, 'remote', {error: null, entries: [], path: ''})
 
   try {
     const password =
       site.logonType === 'anonymous' || site.logonType === 'key_file'
         ? null
         : (options.password ?? null)
-    
+
     const info = await api.sessionConnect(
       effectiveSite,
       password,
@@ -205,13 +212,13 @@ export async function connectSite(site: SiteConfig, options: ConnectOptions = {}
       syncBrowsing: effectiveSite.syncBrowsing,
       syncBase: null
     })
-    store.getState().updatePane(tabId, 'remote', { history: [], historyIndex: -1 })
+    store.getState().updatePane(tabId, 'remote', {history: [], historyIndex: -1})
 
     if (effectiveSite.localDir) {
-      await navigate(tabId, 'local', effectiveSite.localDir, { pushHistory: false })
+      await navigate(tabId, 'local', effectiveSite.localDir, {pushHistory: false})
     }
 
-    await navigate(tabId, 'remote', info.initialDir, { pushHistory: true })
+    await navigate(tabId, 'remote', info.initialDir, {pushHistory: true})
 
     if (effectiveSite.syncBrowsing) {
       const current = tabById(tabId)
@@ -220,14 +227,14 @@ export async function connectSite(site: SiteConfig, options: ConnectOptions = {}
         store
           .getState()
           .updateTab(tabId, {
-            syncBase: { local: current.local.path, remote: current.remote.path }
+            syncBase: {local: current.local.path, remote: current.remote.path}
           })
       }
     }
 
     store.getState().setFocusedPane('remote')
   } catch (error) {
-    store.getState().updateTab(tabId, { connecting: false, sessionId: null })
+    store.getState().updateTab(tabId, {connecting: false, sessionId: null})
 
     if (isHostKeyChanged(error)) {
       store
@@ -257,7 +264,7 @@ export async function connectSite(site: SiteConfig, options: ConnectOptions = {}
       return
     }
 
-    store.getState().updatePane(tabId, 'remote', { error: describeError(error) })
+    store.getState().updatePane(tabId, 'remote', {error: describeError(error)})
     toastError(error)
   }
 }
@@ -265,7 +272,7 @@ export async function connectSite(site: SiteConfig, options: ConnectOptions = {}
 export async function acceptChangedHostKey(
   tabId: string,
   site: SiteConfig,
-  detail: { host: string },
+  detail: {host: string},
   password: string | null
 ) {
   const [host, portText] = splitHostPort(detail.host, site)
@@ -278,7 +285,7 @@ export async function acceptChangedHostKey(
     return
   }
 
-  await connectSite(site, { tabId, password, acceptNewHostkey: true })
+  await connectSite(site, {tabId, password, acceptNewHostkey: true})
 }
 
 function splitHostPort(value: string, site: SiteConfig): [string, number] {
@@ -299,7 +306,7 @@ export async function acceptCertificate(
   password: string | null
 ) {
   await api.certificateTrust(fingerprint, remember)
-  await connectSite(site, { tabId, password })
+  await connectSite(site, {tabId, password})
 }
 
 interface NavigateOptions {
@@ -321,8 +328,8 @@ export async function navigate(
     return
   }
 
-  const { pushHistory = true, force = false, keepSelection = false, mirror = true } = options
-  store.getState().updatePane(tabId, side, { loading: true, error: null })
+  const {pushHistory = true, force = false, keepSelection = false, mirror = true} = options
+  store.getState().updatePane(tabId, side, {loading: true, error: null})
 
   try {
     let entries: Entry[]
@@ -330,7 +337,7 @@ export async function navigate(
 
     if (side === 'remote') {
       if (!tab.sessionId) {
-        store.getState().updatePane(tabId, side, { loading: false })
+        store.getState().updatePane(tabId, side, {loading: false})
 
         return
       }
@@ -357,17 +364,19 @@ export async function navigate(
         historyIndex = 0
       }
 
-      const selected = keepSelection
-        ? pane.selected.filter((p) => entries.some((e) => e.path === p))
-        : []
+      const selection = keepSelection
+        ? {
+          cursor: pane.cursor,
+          selected: pane.selected.filter((p) => entries.some((e) => e.path === p))
+        }
+        : selectionAfterNavigation(side, pane.path, resolved, entries)
 
       return {
         path: resolved,
         entries,
         loading: false,
         error: null,
-        selected,
-        cursor: keepSelection ? pane.cursor : null,
+        ...selection,
         history,
         historyIndex,
         filter: changed ? '' : pane.filter
@@ -378,7 +387,7 @@ export async function navigate(
       await mirrorNavigation(tabId, side, resolved)
     }
   } catch (error) {
-    store.getState().updatePane(tabId, side, { loading: false, error: describeError(error) })
+    store.getState().updatePane(tabId, side, {loading: false, error: describeError(error)})
   }
 }
 
@@ -412,7 +421,7 @@ async function mirrorNavigation(tabId: string, side: PaneSide, resolved: string)
     return
   }
 
-  await navigate(tabId, other, target, { mirror: false })
+  await navigate(tabId, other, target, {mirror: false})
 }
 
 export async function refresh(tabId: string, side: PaneSide) {
@@ -482,8 +491,8 @@ export async function goHistory(tabId: string, side: PaneSide, delta: number) {
     return
   }
 
-  store.getState().updatePane(tabId, side, { historyIndex: index })
-  await navigate(tabId, side, pane.history[index], { pushHistory: false })
+  store.getState().updatePane(tabId, side, {historyIndex: index})
+  await navigate(tabId, side, pane.history[index], {pushHistory: false})
 }
 
 export async function openEntry(tabId: string, side: PaneSide, entry: Entry) {
@@ -509,13 +518,21 @@ export async function openEntry(tabId: string, side: PaneSide, entry: Entry) {
     if (target.isDir) {
       await navigate(tabId, side, target.target)
     } else {
-      await transferEntries(tabId, side, [{ ...entry, path: target.target, kind: 'file' }])
+      await openFile(tabId, side, {...entry, path: target.target, kind: 'file'})
     }
 
     return
   }
 
-  await transferEntries(tabId, side, [entry])
+  await openFile(tabId, side, entry)
+}
+
+async function openFile(tabId: string, side: PaneSide, entry: Entry) {
+  if (isExecutable(entry)) {
+    return
+  }
+
+  await viewEdit(tabId, side, entry)
 }
 
 async function resolveLink(tab: Tab, side: PaneSide, entry: Entry) {
@@ -557,7 +574,7 @@ export async function goToTarget(tabId: string, side: PaneSide, entry: Entry) {
         ? parentRemote(target.target)
         : target.target.slice(0, Math.max(target.target.lastIndexOf('\\'), 0)) || target.target
     await navigate(tabId, side, parent)
-    store.getState().updatePane(tabId, side, { selected: [target.target], cursor: target.target })
+    store.getState().updatePane(tabId, side, {selected: [target.target], cursor: target.target})
   }
 }
 
@@ -580,7 +597,7 @@ export async function transferEntries(
   }
 
   const settings = store.getState().settings
-  const { priority = 0, startPaused = false } = options
+  const {priority = 0, startPaused = false} = options
   const localDest = fromSide === 'remote' ? (options.destDir ?? tab.local.path) : tab.local.path
   const remoteDest = fromSide === 'local' ? (options.destDir ?? tab.remote.path) : tab.remote.path
   const requests: QueueRequest[] = entries.map((entry) => {
@@ -695,7 +712,7 @@ export async function createFolder(tabId: string, side: PaneSide, name: string, 
         await navigate(tabId, side, path)
       } else {
         await refresh(tabId, side)
-        store.getState().updatePane(tabId, side, { selected: [path], cursor: path })
+        store.getState().updatePane(tabId, side, {selected: [path], cursor: path})
       }
     } else {
       const path = joinLocal(pane.path, name.trim())
@@ -705,7 +722,7 @@ export async function createFolder(tabId: string, side: PaneSide, name: string, 
         await navigate(tabId, side, path)
       } else {
         await refresh(tabId, side)
-        store.getState().updatePane(tabId, side, { selected: [path], cursor: path })
+        store.getState().updatePane(tabId, side, {selected: [path], cursor: path})
       }
     }
   } catch (error) {
@@ -781,7 +798,7 @@ export async function deleteEntries(tabId: string, side: PaneSide, entries: Entr
 
         await api.remoteDelete(
           tab.sessionId,
-          entries.map((e) => ({ path: e.path, isDir: e.kind === 'dir' }))
+          entries.map((e) => ({path: e.path, isDir: e.kind === 'dir'}))
         )
       } else {
         await api.localDelete(entries.map((e) => e.path))
@@ -797,7 +814,7 @@ export async function deleteEntries(tabId: string, side: PaneSide, entries: Entr
     store.getState().openDialog({
       kind: 'confirm',
       title: t('dialog.deleteTitle'),
-      message: t('dialog.deleteConfirm', { n: entries.length }),
+      message: t('dialog.deleteConfirm', {n: entries.length}),
       danger: true,
       confirmLabel: t('dialog.delete'),
       onConfirm: run
@@ -912,10 +929,10 @@ export async function saveSettings(settings: AppSettings) {
 }
 
 export async function updateSettings(patch: Partial<AppSettings>) {
-  await saveSettings({ ...store.getState().settings, ...patch })
+  await saveSettings({...store.getState().settings, ...patch})
 }
 
-export async function saveSites(tree: { root: import('../lib/api').SiteNode[] }) {
+export async function saveSites(tree: {root: import('../lib/api').SiteNode[]}) {
   try {
     await api.sitesSave(tree)
     store.getState().setSites(tree)
@@ -928,7 +945,7 @@ export async function importFileZilla() {
   const selected = await openFileDialog({
     multiple: false,
     directory: false,
-    filters: [{ name: 'FileZilla', extensions: ['xml'] }]
+    filters: [{name: 'FileZilla', extensions: ['xml']}]
   })
 
   if (!selected || typeof selected !== 'string') {
@@ -984,5 +1001,20 @@ export const queueActions = {
   resumeAll: () => api.queueResumeAll().catch(toastError),
   retryFailed: () => api.queueRetryFailed().catch(toastError),
   removeFailed: () => api.queueRemoveFailed().catch(toastError),
-  clearHistory: () => api.queueClearHistory().catch(toastError)
+  clearHistory: () => api.queueClearHistory().catch(toastError),
+  clear: () => api.queueClear().catch(toastError)
+}
+export function clearQueue(pending: number) {
+  if (pending === 0) {
+    return
+  }
+
+  store.getState().openDialog({
+    kind: 'confirm',
+    title: t('queue.clearQueueTitle'),
+    message: t('queue.clearQueueConfirm', {n: pending}),
+    danger: true,
+    confirmLabel: t('queue.clearQueue'),
+    onConfirm: () => queueActions.clear()
+  })
 }

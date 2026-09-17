@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react'
-import { Modal } from '@/components/Modal'
-import { api, type DiffEntry, type DiffKind, type QueueRequest } from '@/lib/api'
-import { formatBytes, formatDate } from '@/lib/format'
-import { pickDirectory, toastError } from '@/state/actions'
-import { useStore, useT } from '@/state/store'
+import {useMemo, useState} from 'react'
+import {Modal} from '@/components/Modal'
+import {api, type DiffEntry, type DiffKind, type QueueRequest} from '@/lib/api'
+import {formatBytes, formatDate} from '@/lib/format'
+import {pickDirectory, toastError} from '@/state/actions'
+import {useStore, useT} from '@/state/store'
 
 type SyncAction = 'upload' | 'download' | 'none'
 
@@ -20,7 +20,7 @@ function defaultAction(kind: DiffKind): SyncAction {
   }
 }
 
-export function SyncDialog({ tabId, close }: { tabId: string, close: () => void }) {
+export function SyncDialog({tabId, close}: {tabId: string, close: () => void}) {
   const t = useT()
   const language = useStore((s) => s.language)
   const tab = useStore((s) => s.tabs.find((x) => x.id === tabId))
@@ -197,7 +197,7 @@ export function SyncDialog({ tabId, close }: { tabId: string, close: () => void 
                     type="checkbox"
                     checked={Boolean(checked[entry.relativePath])}
                     onChange={(e) =>
-                      setChecked({ ...checked, [entry.relativePath]: e.target.checked })
+                      setChecked({...checked, [entry.relativePath]: e.target.checked})
                     }
                   />
                 </td>
@@ -227,8 +227,8 @@ export function SyncDialog({ tabId, close }: { tabId: string, close: () => void 
                     value={actions[entry.relativePath] ?? 'none'}
                     onChange={(e) => {
                       const value = e.target.value as SyncAction
-                      setActions({ ...actions, [entry.relativePath]: value })
-                      setChecked({ ...checked, [entry.relativePath]: value !== 'none' })
+                      setActions({...actions, [entry.relativePath]: value})
+                      setChecked({...checked, [entry.relativePath]: value !== 'none'})
                     }}
                   >
                     <option value="upload">{t('sync.action.upload')}</option>

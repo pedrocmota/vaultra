@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Modal } from '@/components/Modal'
+import {useEffect, useMemo, useRef, useState} from 'react'
+import {Modal} from '@/components/Modal'
+import {NumberInput} from '@/components/NumberInput'
 import {
   api,
   defaultPort,
@@ -13,7 +14,7 @@ import {
   type SiteTree,
   type TransferMode
 } from '@/lib/api'
-import { startMouseDrag } from '@/lib/drag'
+import {startMouseDrag} from '@/lib/drag'
 import {
   connectSite,
   importFileZilla,
@@ -23,14 +24,17 @@ import {
   saveSites,
   toastError
 } from '@/state/actions'
-import { useStore, useT } from '@/state/store'
-import { ConflictPolicySelect } from './SettingsDialog'
+import {useStore, useT} from '@/state/store'
+import {ConflictPolicySelect} from './SettingsDialog'
+import {
+  folderPathTo,
+  rowIndexOf,
+  selectionOf,
+  visibleRows,
+  type TreeSelection
+} from './siteTreeRows'
 
-type Selection =
-  | { kind: 'folder', id: string }
-  | { kind: 'site', id: string }
-  | { kind: 'bookmark', siteId: string, id: string }
-  | null
+type Selection = TreeSelection
 type SubTab = 'general' | 'advanced' | 'transfer' | 'charset' | 'sftp'
 
 const COLORS = [
@@ -67,8 +71,8 @@ function walk(
   return false
 }
 
-function findSiteNode(tree: SiteTree, id: string): Extract<SiteNode, { kind: 'site' }> | null {
-  let found: Extract<SiteNode, { kind: 'site' }> | null = null
+function findSiteNode(tree: SiteTree, id: string): Extract<SiteNode, {kind: 'site'}> | null {
+  let found: Extract<SiteNode, {kind: 'site'}> | null = null
   walk(tree.root, (node) => {
     if (node.kind === 'site' && node.site.id === id) {
       found = node
@@ -80,8 +84,8 @@ function findSiteNode(tree: SiteTree, id: string): Extract<SiteNode, { kind: 'si
   return found
 }
 
-function findFolder(tree: SiteTree, id: string): Extract<SiteNode, { kind: 'folder' }> | null {
-  let found: Extract<SiteNode, { kind: 'folder' }> | null = null
+function findFolder(tree: SiteTree, id: string): Extract<SiteNode, {kind: 'folder'}> | null {
+  let found: Extract<SiteNode, {kind: 'folder'}> | null = null
   walk(tree.root, (node) => {
     if (node.kind === 'folder' && node.id === id) {
       found = node
@@ -120,13 +124,13 @@ function containsFolder(node: SiteNode, folderId: string): boolean {
   return node.children.some((child) => containsFolder(child, folderId))
 }
 
-export function SiteManager({ selectId, close }: { selectId?: string, close: () => void }) {
+export function SiteManager({selectId, close}: {selectId?: string, close: () => void}) {
   const t = useT()
   const sites = useStore((s) => s.sites)
   const activeTabId = useStore((s) => s.activeTabId)
   const [tree, setTree] = useState<SiteTree>(() => cloneTree(sites))
   const [selection, setSelection] = useState<Selection>(
-    selectId ? { kind: 'site', id: selectId } : null
+    selectId ? {kind: 'site', id: selectId} : null
   )
 
   const [expanded, setExpanded] = useState<Set<string>>(
@@ -175,7 +179,7 @@ export function SiteManager({ selectId, close }: { selectId?: string, close: () 
     if (selectedSite.site.logonType === 'normal' && storedPassword[id] === undefined) {
       api
         .sitePasswordGet(id)
-        .then((value) => setStoredPassword((s) => ({ ...s, [id]: Boolean(value) })))
+        .then((value) => setStoredPassword((s) => ({...s, [id]: Boolean(value)})))
         .catch(() => undefined)
     }
   }, [selectedSite, storedPassword])
@@ -250,18 +254,18 @@ export function SiteManager({ selectId, close }: { selectId?: string, close: () 
   }
 
   const addSite = () => {
-    const site = defaultSite({ name: t('sm.newSite') })
-    mutate((draft) => containerOf(draft).push({ kind: 'site', site, bookmarks: [] }))
-    setSelection({ kind: 'site', id: site.id })
+    const site = defaultSite({name: t('sm.newSite')})
+    mutate((draft) => containerOf(draft).push({kind: 'site', site, bookmarks: []}))
+    setSelection({kind: 'site', id: site.id})
     setSubTab('general')
   }
 
   const addFolder = () => {
     const id = crypto.randomUUID()
     mutate((draft) =>
-      containerOf(draft).push({ kind: 'folder', id, name: t('sm.newFolder'), children: [] })
+      containerOf(draft).push({kind: 'folder', id, name: t('sm.newFolder'), children: []})
     )
-    setSelection({ kind: 'folder', id })
+    setSelection({kind: 'folder', id})
     setExpanded((s) => new Set(s).add(id))
   }
 
@@ -279,7 +283,7 @@ export function SiteManager({ selectId, close }: { selectId?: string, close: () 
       syncBrowsing: false
     }
     mutate((draft) => findSiteNode(draft, siteId)?.bookmarks.push(bookmark))
-    setSelection({ kind: 'bookmark', siteId, id: bookmark.id })
+    setSelection({kind: 'bookmark', siteId, id: bookmark.id})
     setExpanded((s) => new Set(s).add(siteId))
   }
 
@@ -306,10 +310,10 @@ export function SiteManager({ selectId, close }: { selectId?: string, close: () 
       parent.push({
         kind: 'site',
         site: copy,
-        bookmarks: source.bookmarks.map((b) => ({ ...b, id: crypto.randomUUID() }))
+        bookmarks: source.bookmarks.map((b) => ({...b, id: crypto.randomUUID()}))
       })
     })
-    setSelection({ kind: 'site', id: copy.id })
+    setSelection({kind: 'site', id: copy.id})
   }
 
   const remove = () => {
@@ -326,7 +330,7 @@ export function SiteManager({ selectId, close }: { selectId?: string, close: () 
     useStore.getState().openDialog({
       kind: 'confirm',
       title: t('sm.delete'),
-      message: t('sm.deleteConfirm', { name: name ?? '' }),
+      message: t('sm.deleteConfirm', {name: name ?? ''}),
       danger: true,
       confirmLabel: t('sm.delete'),
       onConfirm: () => {
@@ -364,9 +368,9 @@ export function SiteManager({ selectId, close }: { selectId?: string, close: () 
       initial: current ?? '',
       onSubmit: (value) => {
         if (selection.kind === 'bookmark') {
-          updateBookmark({ name: value })
+          updateBookmark({name: value})
         } else if (selection.kind === 'site') {
-          updateSite({ name: value })
+          updateSite({name: value})
         } else {
           mutate((draft) => {
             const folder = findFolder(draft, selection.id)
@@ -395,7 +399,7 @@ export function SiteManager({ selectId, close }: { selectId?: string, close: () 
       }
 
       const target = targetFolderId ? findFolder(draft, targetFolderId)?.children : draft.root
-      ;(target ?? draft.root).push(moving)
+        ; (target ?? draft.root).push(moving)
     })
 
     if (targetFolderId) {
@@ -478,10 +482,10 @@ export function SiteManager({ selectId, close }: { selectId?: string, close: () 
           <div key={node.id}>
             <div
               className={`node${selected ? ' selected' : ''}${dropTarget === node.id ? ' drop' : ''}`}
-              style={{ paddingLeft: 6 + depth * 14 }}
+              style={{paddingLeft: 6 + depth * 14}}
               data-node-id={node.id}
               data-node-kind="folder"
-              onClick={() => setSelection({ kind: 'folder', id: node.id })}
+              onClick={() => setSelection({kind: 'folder', id: node.id})}
               onDoubleClick={() =>
                 setExpanded((s) => {
                   const next = new Set(s)
@@ -530,10 +534,10 @@ export function SiteManager({ selectId, close }: { selectId?: string, close: () 
         <div key={node.site.id}>
           <div
             className={`node${selected ? ' selected' : ''}`}
-            style={{ paddingLeft: 6 + depth * 14 }}
+            style={{paddingLeft: 6 + depth * 14}}
             data-node-id={node.site.id}
             data-node-kind="site"
-            onClick={() => setSelection({ kind: 'site', id: node.site.id })}
+            onClick={() => setSelection({kind: 'site', id: node.site.id})}
             onDoubleClick={() => void connect()}
             onMouseDown={(e) => startDrag(e, node)}
           >
@@ -572,10 +576,11 @@ export function SiteManager({ selectId, close }: { selectId?: string, close: () 
             node.bookmarks.map((bookmark) => (
               <div
                 key={bookmark.id}
+                data-node-id={bookmark.id}
                 className={`node${selection?.kind === 'bookmark' && selection.id === bookmark.id ? ' selected' : ''}`}
-                style={{ paddingLeft: 6 + (depth + 1) * 14 }}
+                style={{paddingLeft: 6 + (depth + 1) * 14}}
                 onClick={() =>
-                  setSelection({ kind: 'bookmark', siteId: node.site.id, id: bookmark.id })
+                  setSelection({kind: 'bookmark', siteId: node.site.id, id: bookmark.id})
                 }
                 onDoubleClick={() => void connect()}
               >
@@ -586,6 +591,130 @@ export function SiteManager({ selectId, close }: { selectId?: string, close: () 
         </div>
       )
     })
+
+
+  const treeRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    treeRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    if (selectId) {
+      return
+    }
+
+    let cancelled = false
+    api
+      .recentGet()
+      .then((recent) => {
+        if (cancelled) {
+          return
+        }
+
+        const last = recent.find((r) => findSiteNode(sites, r.site.id))
+
+        if (!last) {
+          return
+        }
+
+        const path = folderPathTo(sites, last.site.id) ?? []
+        setExpanded((s) => new Set([...s, ...path]))
+        setSelection({kind: 'site', id: last.site.id})
+      })
+      .catch(() => undefined)
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selection) {
+      return
+    }
+
+    treeRef.current
+      ?.querySelector(`[data-node-id="${selection.id}"]`)
+      ?.scrollIntoView({block: 'nearest'})
+  }, [selection])
+
+  const toggleExpanded = (id: string, open?: boolean) =>
+    setExpanded((s) => {
+      const next = new Set(s)
+      const shouldOpen = open ?? !next.has(id)
+
+      if (shouldOpen) {
+        next.add(id)
+      } else {
+        next.delete(id)
+      }
+
+      return next
+    })
+
+  const onTreeKeyDown = (event: React.KeyboardEvent) => {
+    const rows = visibleRows(tree, expanded)
+
+    if (rows.length === 0) {
+      return
+    }
+
+    const index = rowIndexOf(rows, selection)
+    const row = index >= 0 ? rows[index] : null
+    const moveTo = (target: number) => {
+      const clamped = Math.max(0, Math.min(rows.length - 1, target))
+      setSelection(selectionOf(rows[clamped]))
+    }
+
+    switch (event.key) {
+      case 'ArrowDown':
+        moveTo(index + 1)
+        break
+      case 'ArrowUp':
+        moveTo(index < 0 ? 0 : index - 1)
+        break
+      case 'Home':
+        moveTo(0)
+        break
+      case 'End':
+        moveTo(rows.length - 1)
+        break
+      case 'ArrowRight':
+        if (row?.expandable && !expanded.has(row.id)) {
+          toggleExpanded(row.id, true)
+        } else if (row?.expandable) {
+          moveTo(index + 1)
+        }
+
+        break
+      case 'ArrowLeft':
+        if (row?.expandable && expanded.has(row.id)) {
+          toggleExpanded(row.id, false)
+        } else if (row?.parentId) {
+          const parent = rows.findIndex((r) => r.id === row.parentId)
+          moveTo(parent)
+        }
+
+        break
+      case 'Enter':
+        if (selectedSite) {
+          void connect()
+        }
+
+        break
+      case 'Delete':
+        if (selection) {
+          remove()
+        }
+
+        break
+      default:
+        return
+    }
+
+    event.preventDefault()
+  }
 
   const site = selectedSite?.site ?? null
   const password = site ? (passwords[site.id] ?? '') : ''
@@ -612,7 +741,10 @@ export function SiteManager({ selectId, close }: { selectId?: string, close: () 
       <div className="sitemanager">
         <div className="left">
           <div
+            ref={treeRef}
+            tabIndex={0}
             className={`tree${dropTarget === '__root__' ? ' drop' : ''}`}
+            onKeyDown={onTreeKeyDown}
             onClick={(e) => {
               if (e.target === e.currentTarget) {
                 setSelection(null)
@@ -668,7 +800,7 @@ export function SiteManager({ selectId, close }: { selectId?: string, close: () 
                     site={site}
                     password={password}
                     hasStoredPassword={Boolean(storedPassword[site.id])}
-                    onPassword={(value) => setPasswords((p) => ({ ...p, [site.id]: value }))}
+                    onPassword={(value) => setPasswords((p) => ({...p, [site.id]: value}))}
                     onChange={updateSite}
                   />
                 )}
@@ -704,32 +836,32 @@ function GeneralForm({
   onPassword: (value: string) => void
 }) {
   const t = useT()
-  const protocols: { value: Protocol, label: string }[] = [
-    { value: 'ftp', label: t('proto.ftp') },
-    { value: 'ftps_explicit', label: t('proto.ftpsExplicit') },
-    { value: 'ftps_implicit', label: t('proto.ftpsImplicit') },
-    { value: 'sftp', label: t('proto.sftp') }
+  const protocols: {value: Protocol, label: string}[] = [
+    {value: 'ftp', label: t('proto.ftp')},
+    {value: 'ftps_explicit', label: t('proto.ftpsExplicit')},
+    {value: 'ftps_implicit', label: t('proto.ftpsImplicit')},
+    {value: 'sftp', label: t('proto.sftp')}
   ]
 
-  const logonTypes: { value: LogonType, label: string }[] = [
-    { value: 'anonymous', label: t('sm.logon.anonymous') },
-    { value: 'normal', label: t('sm.logon.normal') },
-    { value: 'ask', label: t('sm.logon.ask') },
-    { value: 'interactive', label: t('sm.logon.interactive') },
-    { value: 'key_file', label: t('sm.logon.keyFile') }
+  const logonTypes: {value: LogonType, label: string}[] = [
+    {value: 'anonymous', label: t('sm.logon.anonymous')},
+    {value: 'normal', label: t('sm.logon.normal')},
+    {value: 'ask', label: t('sm.logon.ask')},
+    {value: 'interactive', label: t('sm.logon.interactive')},
+    {value: 'key_file', label: t('sm.logon.keyFile')}
   ]
 
   return (
     <div className="form">
       <span className="k">{t('sm.name')}</span>
-      <input type="text" value={site.name} onChange={(e) => onChange({ name: e.target.value })} />
+      <input type="text" value={site.name} onChange={(e) => onChange({name: e.target.value})} />
       <span className="k">{t('sm.protocol')}</span>
       <select
         value={site.protocol}
         onChange={(e) => {
           const protocol = e.target.value as Protocol
           const wasDefault = site.port === defaultPort(site.protocol)
-          onChange({ protocol, port: wasDefault ? defaultPort(protocol) : site.port })
+          onChange({protocol, port: wasDefault ? defaultPort(protocol) : site.port})
         }}
       >
         {protocols.map((p) => (
@@ -744,26 +876,22 @@ function GeneralForm({
           type="text"
           value={site.host}
           spellCheck={false}
-          onChange={(e) => onChange({ host: e.target.value.trim() })}
+          onChange={(e) => onChange({host: e.target.value.trim()})}
         />
         <span className="k">{t('sm.port')}</span>
-        <input
-          type="number"
+        <NumberInput
           min={1}
           max={65535}
-          style={{ width: 90 }}
+          fallback={defaultPort(site.protocol)}
+          style={{width: 90}}
           value={site.port}
-          onChange={(e) =>
-            onChange({
-              port: Number(e.target.value) || defaultPort(site.protocol)
-            })
-          }
+          onCommit={(port) => onChange({port})}
         />
       </div>
       <span className="k">{t('sm.logonType')}</span>
       <select
         value={site.logonType}
-        onChange={(e) => onChange({ logonType: e.target.value as LogonType })}
+        onChange={(e) => onChange({logonType: e.target.value as LogonType})}
       >
         {logonTypes
           .filter((l) => site.protocol === 'sftp' || l.value !== 'key_file')
@@ -779,7 +907,7 @@ function GeneralForm({
         value={site.user}
         spellCheck={false}
         disabled={site.logonType === 'anonymous'}
-        onChange={(e) => onChange({ user: e.target.value })}
+        onChange={(e) => onChange({user: e.target.value})}
       />
       {site.logonType === 'normal' && (
         <>
@@ -790,7 +918,7 @@ function GeneralForm({
               value={password}
               placeholder={hasStoredPassword ? '••••••••' : ''}
               onChange={(e) => onPassword(e.target.value)}
-              style={{ width: '100%' }}
+              style={{width: '100%'}}
             />
             <div className="hint">{t('sm.passwordStored')}</div>
           </div>
@@ -801,14 +929,14 @@ function GeneralForm({
         <span
           className={`sw none${site.color ? '' : ' selected'}`}
           title={t('sm.color.none')}
-          onClick={() => onChange({ color: null })}
+          onClick={() => onChange({color: null})}
         />
         {COLORS.map((color) => (
           <span
             key={color}
             className={`sw${site.color === color ? ' selected' : ''}`}
-            style={{ background: color }}
-            onClick={() => onChange({ color })}
+            style={{background: color}}
+            onClick={() => onChange({color})}
           />
         ))}
       </div>
@@ -816,18 +944,18 @@ function GeneralForm({
       <textarea
         rows={3}
         value={site.comments}
-        onChange={(e) => onChange({ comments: e.target.value })}
+        onChange={(e) => onChange({comments: e.target.value})}
       />
     </div>
   )
 }
 
-function AdvancedForm({ site, onChange }: FormProps) {
+function AdvancedForm({site, onChange}: FormProps) {
   const t = useT()
-  const serverTypes: { value: ServerType, label: string }[] = [
-    { value: 'auto', label: t('sm.server.auto') },
-    { value: 'unix', label: t('sm.server.unix') },
-    { value: 'windows', label: t('sm.server.windows') }
+  const serverTypes: {value: ServerType, label: string}[] = [
+    {value: 'auto', label: t('sm.server.auto')},
+    {value: 'unix', label: t('sm.server.unix')},
+    {value: 'windows', label: t('sm.server.windows')}
   ]
 
   return (
@@ -837,11 +965,11 @@ function AdvancedForm({ site, onChange }: FormProps) {
         <input
           type="text"
           value={site.localDir}
-          onChange={(e) => onChange({ localDir: e.target.value })}
+          onChange={(e) => onChange({localDir: e.target.value})}
         />
         <button
           onClick={() =>
-            void pickDirectory(site.localDir).then((dir) => dir && onChange({ localDir: dir }))
+            void pickDirectory(site.localDir).then((dir) => dir && onChange({localDir: dir}))
           }
         >
           {t('sm.browse')}
@@ -852,21 +980,21 @@ function AdvancedForm({ site, onChange }: FormProps) {
         type="text"
         value={site.remoteDir}
         spellCheck={false}
-        onChange={(e) => onChange({ remoteDir: e.target.value })}
+        onChange={(e) => onChange({remoteDir: e.target.value})}
       />
       <span className="k" />
       <label>
         <input
           type="checkbox"
           checked={site.syncBrowsing}
-          onChange={(e) => onChange({ syncBrowsing: e.target.checked })}
+          onChange={(e) => onChange({syncBrowsing: e.target.checked})}
         />
         {t('sm.syncBrowsing')}
       </label>
       <span className="k">{t('sm.serverType')}</span>
       <select
         value={site.serverType}
-        onChange={(e) => onChange({ serverType: e.target.value as ServerType })}
+        onChange={(e) => onChange({serverType: e.target.value as ServerType})}
       >
         {serverTypes.map((s) => (
           <option key={s.value} value={s.value}>
@@ -879,42 +1007,33 @@ function AdvancedForm({ site, onChange }: FormProps) {
         <input
           type="checkbox"
           checked={site.bypassProxy}
-          onChange={(e) => onChange({ bypassProxy: e.target.checked })}
+          onChange={(e) => onChange({bypassProxy: e.target.checked})}
         />
         {t('sm.bypassProxy')}
       </label>
       <span className="k">{t('sm.keepalive')}</span>
-      <input
-        type="number"
+      <NumberInput
         min={0}
         value={site.keepaliveSecs}
-        onChange={(e) =>
-          onChange({
-            keepaliveSecs: Math.max(0, Number(e.target.value) || 0)
-          })
-        }
+        onCommit={(keepaliveSecs) => onChange({keepaliveSecs})}
       />
       <span className="k">{t('sm.timeout')}</span>
-      <input
-        type="number"
+      <NumberInput
         min={5}
+        fallback={30}
         value={site.timeoutSecs}
-        onChange={(e) =>
-          onChange({
-            timeoutSecs: Math.max(5, Number(e.target.value) || 30)
-          })
-        }
+        onCommit={(timeoutSecs) => onChange({timeoutSecs})}
       />
     </div>
   )
 }
 
-function TransferForm({ site, onChange }: FormProps) {
+function TransferForm({site, onChange}: FormProps) {
   const t = useT()
-  const modes: { value: TransferMode, label: string }[] = [
-    { value: 'default', label: t('sm.mode.default') },
-    { value: 'active', label: t('sm.mode.active') },
-    { value: 'passive', label: t('sm.mode.passive') }
+  const modes: {value: TransferMode, label: string}[] = [
+    {value: 'default', label: t('sm.mode.default')},
+    {value: 'active', label: t('sm.mode.active')},
+    {value: 'passive', label: t('sm.mode.passive')}
   ]
 
   return (
@@ -924,7 +1043,7 @@ function TransferForm({ site, onChange }: FormProps) {
           <span className="k">{t('sm.transferMode')}</span>
           <select
             value={site.transferMode}
-            onChange={(e) => onChange({ transferMode: e.target.value as TransferMode })}
+            onChange={(e) => onChange({transferMode: e.target.value as TransferMode})}
           >
             {modes.map((m) => (
               <option key={m.value} value={m.value}>
@@ -941,35 +1060,30 @@ function TransferForm({ site, onChange }: FormProps) {
             <input
               type="checkbox"
               checked={site.asciiMode}
-              onChange={(e) => onChange({ asciiMode: e.target.checked })}
+              onChange={(e) => onChange({asciiMode: e.target.checked})}
             />
             {t('sm.asciiMode')}
           </label>
         </>
       )}
       <span className="k">{t('sm.maxConnections')}</span>
-      <input
-        type="number"
+      <NumberInput
         min={1}
         max={10}
         value={site.maxConnections}
-        onChange={(e) =>
-          onChange({
-            maxConnections: Math.min(10, Math.max(1, Number(e.target.value) || 1))
-          })
-        }
+        onCommit={(maxConnections) => onChange({maxConnections})}
       />
       <span className="k">{t('sm.conflictPolicy')}</span>
       <ConflictPolicySelect
         value={site.conflictPolicy}
-        onChange={(value) => onChange({ conflictPolicy: value })}
+        onChange={(value) => onChange({conflictPolicy: value})}
         allowInherit
       />
     </div>
   )
 }
 
-function CharsetForm({ site, onChange }: FormProps) {
+function CharsetForm({site, onChange}: FormProps) {
   const t = useT()
   const mode = site.encoding.mode
 
@@ -980,7 +1094,7 @@ function CharsetForm({ site, onChange }: FormProps) {
           <input
             type="radio"
             checked={mode === 'auto'}
-            onChange={() => onChange({ encoding: { mode: 'auto' } })}
+            onChange={() => onChange({encoding: {mode: 'auto'}})}
           />
           {t('sm.charset.auto')}
         </label>
@@ -990,7 +1104,7 @@ function CharsetForm({ site, onChange }: FormProps) {
           <input
             type="radio"
             checked={mode === 'utf8'}
-            onChange={() => onChange({ encoding: { mode: 'utf8' } })}
+            onChange={() => onChange({encoding: {mode: 'utf8'}})}
           />
           {t('sm.charset.utf8')}
         </label>
@@ -1000,7 +1114,7 @@ function CharsetForm({ site, onChange }: FormProps) {
           <input
             type="radio"
             checked={mode === 'custom'}
-            onChange={() => onChange({ encoding: { mode: 'custom', label: 'ISO-8859-1' } })}
+            onChange={() => onChange({encoding: {mode: 'custom', label: 'ISO-8859-1'}})}
           />
           {t('sm.charset.custom')}
         </label>
@@ -1011,7 +1125,7 @@ function CharsetForm({ site, onChange }: FormProps) {
           <input
             type="text"
             value={site.encoding.mode === 'custom' ? site.encoding.label : ''}
-            onChange={(e) => onChange({ encoding: { mode: 'custom', label: e.target.value } })}
+            onChange={(e) => onChange({encoding: {mode: 'custom', label: e.target.value}})}
           />
         </>
       )}
@@ -1019,10 +1133,10 @@ function CharsetForm({ site, onChange }: FormProps) {
   )
 }
 
-function SftpForm({ site, onChange }: FormProps) {
+function SftpForm({site, onChange}: FormProps) {
   const t = useT()
   const sftp = site.sftp
-  const patch = (value: Partial<SiteConfig['sftp']>) => onChange({ sftp: { ...sftp, ...value } })
+  const patch = (value: Partial<SiteConfig['sftp']>) => onChange({sftp: {...sftp, ...value}})
 
   return (
     <div className="form">
@@ -1032,11 +1146,11 @@ function SftpForm({ site, onChange }: FormProps) {
           type="text"
           value={sftp.keyPath}
           spellCheck={false}
-          onChange={(e) => patch({ keyPath: e.target.value })}
+          onChange={(e) => patch({keyPath: e.target.value})}
         />
         <button
           onClick={() =>
-            void pickFile(sftp.keyPath).then((file) => file && patch({ keyPath: file }))
+            void pickFile(sftp.keyPath).then((file) => file && patch({keyPath: file}))
           }
         >
           {t('sm.browse')}
@@ -1049,7 +1163,7 @@ function SftpForm({ site, onChange }: FormProps) {
         <input
           type="checkbox"
           checked={sftp.useAgent}
-          onChange={(e) => patch({ useAgent: e.target.checked })}
+          onChange={(e) => patch({useAgent: e.target.checked})}
         />
         {t('sm.useAgent')}
       </label>
@@ -1059,7 +1173,7 @@ function SftpForm({ site, onChange }: FormProps) {
         value={sftp.proxyJump}
         spellCheck={false}
         placeholder="user@bastion:22"
-        onChange={(e) => patch({ proxyJump: e.target.value })}
+        onChange={(e) => patch({proxyJump: e.target.value})}
       />
       <span className="k">{t('sm.extraOptions')}</span>
       <div>
@@ -1072,7 +1186,7 @@ function SftpForm({ site, onChange }: FormProps) {
               extraOptions: e.target.value.split('\n')
             })
           }
-          style={{ width: '100%', fontFamily: 'var(--mono)' }}
+          style={{width: '100%', fontFamily: 'var(--mono)'}}
         />
         <div className="hint">{t('sm.extraOptionsHint')}</div>
       </div>
@@ -1090,23 +1204,23 @@ function BookmarkForm({
   const t = useT()
 
   return (
-    <div className="form" style={{ padding: '6px 2px' }}>
+    <div className="form" style={{padding: '6px 2px'}}>
       <span className="k">{t('sm.name')}</span>
       <input
         type="text"
         value={bookmark.name}
-        onChange={(e) => onChange({ name: e.target.value })}
+        onChange={(e) => onChange({name: e.target.value})}
       />
       <span className="k">{t('sm.bookmarkLocal')}</span>
       <div className="inline">
         <input
           type="text"
           value={bookmark.localDir}
-          onChange={(e) => onChange({ localDir: e.target.value })}
+          onChange={(e) => onChange({localDir: e.target.value})}
         />
         <button
           onClick={() =>
-            void pickDirectory(bookmark.localDir).then((dir) => dir && onChange({ localDir: dir }))
+            void pickDirectory(bookmark.localDir).then((dir) => dir && onChange({localDir: dir}))
           }
         >
           {t('sm.browse')}
@@ -1117,14 +1231,14 @@ function BookmarkForm({
         type="text"
         value={bookmark.remoteDir}
         spellCheck={false}
-        onChange={(e) => onChange({ remoteDir: e.target.value })}
+        onChange={(e) => onChange({remoteDir: e.target.value})}
       />
       <span className="k" />
       <label>
         <input
           type="checkbox"
           checked={bookmark.syncBrowsing}
-          onChange={(e) => onChange({ syncBrowsing: e.target.checked })}
+          onChange={(e) => onChange({syncBrowsing: e.target.checked})}
         />
         {t('sm.syncBrowsing')}
       </label>

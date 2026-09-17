@@ -1,20 +1,20 @@
-import { useState } from 'react'
-import { Modal } from '@/components/Modal'
-import type { Entry } from '@/lib/entries'
-import { fromOctal, toOctal } from '@/lib/format'
-import { applyPermissions } from '@/state/actions'
-import { useT } from '@/state/store'
+import {useState} from 'react'
+import {Modal} from '@/components/Modal'
+import type {Entry} from '@/lib/entries'
+import {fromOctal, toOctal} from '@/lib/format'
+import {applyPermissions} from '@/state/actions'
+import {useT} from '@/state/store'
 
 const GROUPS = [
-  { key: 'perm.owner', shift: 6 },
-  { key: 'perm.group', shift: 3 },
-  { key: 'perm.other', shift: 0 }
+  {key: 'perm.owner', shift: 6},
+  {key: 'perm.group', shift: 3},
+  {key: 'perm.other', shift: 0}
 ] as const
 
 const BITS = [
-  { key: 'perm.read', bit: 4 },
-  { key: 'perm.write', bit: 2 },
-  { key: 'perm.execute', bit: 1 }
+  {key: 'perm.read', bit: 4},
+  {key: 'perm.write', bit: 2},
+  {key: 'perm.execute', bit: 1}
 ] as const
 
 export function PermissionsDialog({
@@ -67,7 +67,7 @@ export function PermissionsDialog({
       }
     >
       <p className="hint">
-        {entries.length === 1 ? entries[0].path : t('perm.files', { n: entries.length })}
+        {entries.length === 1 ? entries[0].path : t('perm.files', {n: entries.length})}
       </p>
       <div className="perm-grid">
         <span />
@@ -96,7 +96,7 @@ export function PermissionsDialog({
           type="text"
           value={octal}
           maxLength={4}
-          style={{ width: 80, fontFamily: 'var(--mono)' }}
+          style={{width: 80, fontFamily: 'var(--mono)'}}
           onChange={(e) => onOctal(e.target.value.replace(/[^0-7]/g, ''))}
         />
       </label>
@@ -104,6 +104,6 @@ export function PermissionsDialog({
   )
 }
 
-function FragmentRow({ children }: { children: React.ReactNode }) {
+function FragmentRow({children}: {children: React.ReactNode}) {
   return <>{children}</>
 }

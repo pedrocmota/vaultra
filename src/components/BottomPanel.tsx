@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { TransferItem } from '@/lib/api'
+import {useEffect, useMemo, useRef, useState} from 'react'
+import type {TransferItem} from '@/lib/api'
 import {
   basename,
   formatBytes,
@@ -8,9 +8,9 @@ import {
   formatTime,
   percent
 } from '@/lib/format'
-import { queueActions } from '@/state/actions'
-import { useStore, useT, type BottomTab } from '@/state/store'
-import { ContextMenu, type MenuState } from './ContextMenu'
+import {clearQueue, queueActions} from '@/state/actions'
+import {useStore, useT, type BottomTab} from '@/state/store'
+import {ContextMenu, type MenuState} from './ContextMenu'
 
 export function BottomPanel() {
   const t = useT()
@@ -21,15 +21,15 @@ export function BottomPanel() {
   const failedCount = queue.items.filter((i) => i.status === 'failed').length
   const pendingCount = queue.items.filter((i) => i.status !== 'failed').length
 
-  const tabs: { id: BottomTab, label: string, badge?: number, danger?: boolean }[] = [
-    { id: 'queue', label: t('bottom.queue'), badge: pendingCount },
-    { id: 'failed', label: t('bottom.failed'), badge: failedCount, danger: failedCount > 0 },
-    { id: 'successful', label: t('bottom.successful'), badge: queue.history.length },
-    { id: 'messages', label: t('bottom.messages') }
+  const tabs: {id: BottomTab, label: string, badge?: number, danger?: boolean}[] = [
+    {id: 'queue', label: t('bottom.queue'), badge: pendingCount},
+    {id: 'failed', label: t('bottom.failed'), badge: failedCount, danger: failedCount > 0},
+    {id: 'successful', label: t('bottom.successful'), badge: queue.history.length},
+    {id: 'messages', label: t('bottom.messages')}
   ]
 
   return (
-    <div className="bottom" style={{ height: bottomHeight }}>
+    <div className="bottom" style={{height: bottomHeight}}>
       <div className="tabs">
         {tabs.map((tab) => (
           <button
@@ -48,6 +48,9 @@ export function BottomPanel() {
             <>
               <button onClick={() => void queueActions.resumeAll()}>{t('queue.resumeAll')}</button>
               <button onClick={() => void queueActions.pauseAll()}>{t('queue.pauseAll')}</button>
+              <button onClick={() => clearQueue(pendingCount)}>
+                {t('queue.clearQueue')}
+              </button>
             </>
           )}
           {bottomTab === 'failed' && (
@@ -108,7 +111,7 @@ function QueueTable({
 
   if (items.length === 0) {
     return (
-      <div className="log" style={{ color: 'var(--text-muted)' }}>
+      <div className="log" style={{color: 'var(--text-muted)'}}>
         {emptyText}
       </div>
     )
@@ -131,7 +134,7 @@ function QueueTable({
           danger: true,
           onClick: () => void queueActions.remove(item.id)
         },
-        { separator: true },
+        {separator: true},
         {
           label: t('queue.moveTop'),
           disabled: index === 0,
@@ -147,7 +150,7 @@ function QueueTable({
           disabled: index >= items.length - 1,
           onClick: () => void queueActions.move(item.id, index + 1)
         },
-        { separator: true },
+        {separator: true},
         {
           label: `${t('queue.priority')}: ${t('queue.priorityHigh')}`,
           checked: item.priority > 0,
@@ -208,7 +211,7 @@ function QueueTable({
                 <td>
                   {!item.isDir && (
                     <div className={`progress ${item.status}`}>
-                      <div className="bar" style={{ width: `${pct}%` }} />
+                      <div className="bar" style={{width: `${pct}%`}} />
                       <div className="pct">{pct}%</div>
                     </div>
                   )}
@@ -230,13 +233,13 @@ function QueueTable({
   )
 }
 
-function HistoryTable({ items }: { items: TransferItem[] }) {
+function HistoryTable({items}: {items: TransferItem[]}) {
   const t = useT()
   const language = useStore((s) => s.language)
 
   if (items.length === 0) {
     return (
-      <div className="log" style={{ color: 'var(--text-muted)' }}>
+      <div className="log" style={{color: 'var(--text-muted)'}}>
         {t('queue.noHistory')}
       </div>
     )
@@ -278,7 +281,7 @@ function MessagesActions() {
 
   return (
     <>
-      <label style={{ fontSize: 12 }}>
+      <label style={{fontSize: 12}}>
         <input
           type="checkbox"
           checked={showTrace}
@@ -325,7 +328,7 @@ function MessagesView() {
     <div
       ref={ref}
       className="log"
-      style={{ height: '100%', overflow: 'auto' }}
+      style={{height: '100%', overflow: 'auto'}}
       onScroll={(e) => {
         const el = e.currentTarget
         setAutoscroll(el.scrollHeight - el.scrollTop - el.clientHeight < 8)

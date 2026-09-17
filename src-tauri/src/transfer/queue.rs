@@ -409,6 +409,17 @@ impl TransferQueue {
     self.changed();
   }
 
+  pub fn clear(&self) {
+    let controls: Vec<_> = self.controls.lock().values().cloned().collect();
+    for control in controls {
+      control.pausing.store(false, Ordering::Relaxed);
+      control.token.cancel();
+    }
+    self.items.lock().clear();
+    self.conflicts.lock().clear();
+    self.changed();
+  }
+
   pub fn clear_history(&self) {
     self.history.lock().clear();
     self.changed();

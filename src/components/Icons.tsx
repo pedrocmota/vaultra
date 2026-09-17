@@ -1,7 +1,7 @@
-import type { Entry } from '@/lib/entries'
-import { isDirLike, isLink } from '@/lib/entries'
-import { iconKey, useIconStore } from '@/state/icons'
-import { useStore } from '@/state/store'
+import type {Entry} from '@/lib/entries'
+import {isDirLike, isLink} from '@/lib/entries'
+import {iconKey, useIconStore} from '@/state/icons'
+import {useStore} from '@/state/store'
 
 const base = {
   width: 16,
@@ -45,7 +45,7 @@ export function DriveIcon() {
   )
 }
 
-export function LinkIcon({ broken }: { broken?: boolean }) {
+export function LinkIcon({broken}: {broken?: boolean}) {
   const color = broken ? 'var(--danger)' : 'var(--info)'
 
   return (
@@ -60,7 +60,7 @@ export function LinkIcon({ broken }: { broken?: boolean }) {
   )
 }
 
-export function EntryIcon({ entry }: { entry: Entry }) {
+export function EntryIcon({entry}: {entry: Entry}) {
   const systemIcons = useStore((s) => s.settings.systemIcons)
   const key = iconKey(entry)
   const image = useIconStore((s) => (systemIcons ? s.icons[key] : null))
@@ -84,11 +84,11 @@ export function EntryIcon({ entry }: { entry: Entry }) {
   return <FileIcon />
 }
 
-export function ArrowIcon({ direction }: { direction: 'up' | 'down' | 'left' | 'right' }) {
-  const rotation = { up: 0, right: 90, down: 180, left: 270 }[direction]
+export function ArrowIcon({direction}: {direction: 'up' | 'down' | 'left' | 'right'}) {
+  const rotation = {up: 0, right: 90, down: 180, left: 270}[direction]
 
   return (
-    <svg {...base} style={{ transform: `rotate(${rotation}deg)` }}>
+    <svg {...base} style={{transform: `rotate(${rotation}deg)`}}>
       <path
         d="M8 13V3M4 7l4-4 4 4"
         stroke="currentColor"

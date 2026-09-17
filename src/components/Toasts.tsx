@@ -1,5 +1,5 @@
-import { useEffect } from 'react'
-import { useStore } from '@/state/store'
+import {useEffect} from 'react'
+import {useStore} from '@/state/store'
 
 export function Toasts() {
   const toasts = useStore((s) => s.toasts)

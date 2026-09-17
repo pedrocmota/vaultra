@@ -1,4 +1,4 @@
-import type { ptBR } from './pt-BR'
+import type {ptBR} from './pt-BR'
 
 export const en: Record<keyof typeof ptBR, string> = {
   'app.title': 'Vaultra',
@@ -29,6 +29,7 @@ export const en: Record<keyof typeof ptBR, string> = {
   'menu.swapPanes': 'Swap panes',
   'menu.processQueue': 'Process queue',
   'menu.pauseAll': 'Pause all transfers',
+  'menu.clearQueue': 'Clear queue',
   'menu.sync': 'Synchronize folders…',
   'menu.about': 'About Vaultra',
   'menu.openLogs': 'Open log folder',
@@ -91,6 +92,9 @@ export const en: Record<keyof typeof ptBR, string> = {
   'queue.removeFailed': 'Clear failed',
   'queue.clear': 'Clear',
   'queue.pauseAll': 'Pause all',
+  'queue.clearQueue': 'Clear queue',
+  'queue.clearQueueTitle': 'Clear queue',
+  'queue.clearQueueConfirm': 'Cancel and remove {n} transfer(s) from the queue?',
   'queue.resumeAll': 'Resume all',
   'queue.waitingConnection': 'waiting for connection',
   'queue.col.file': 'File',

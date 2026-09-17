@@ -184,10 +184,29 @@ impl Session {
   pub async fn list(&self, path: &str, force: bool) -> VResult<Vec<RemoteEntry>> {
     if !force {
       if let Some(cached) = self.cache.get(path) {
+        self.log.status(format!(
+          "Directory listing of \"{path}\" served from cache ({} entries)",
+          cached.len()
+        ));
         return Ok(cached);
       }
     }
-    let listing = self.primary.list(path).await?;
+    self
+      .log
+      .status(format!("Retrieving directory listing of \"{path}\""));
+    let listing = match self.primary.list(path).await {
+      Ok(listing) => listing,
+      Err(error) => {
+        self.log.error(format!(
+          "Failed to retrieve directory listing of \"{path}\": {error}"
+        ));
+        return Err(error);
+      }
+    };
+    self.log.status(format!(
+      "Directory listing of \"{path}\" successful ({} entries)",
+      listing.len()
+    ));
     self.cache.put(path, listing.clone());
     Ok(listing)
   }

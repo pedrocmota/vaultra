@@ -165,7 +165,7 @@ export function relativeLocal(base: string, path: string): string | null {
 }
 
 export function buildUrl(
-  site: { protocol: string, host: string, port: number, user: string, logonType: string },
+  site: {protocol: string, host: string, port: number, user: string, logonType: string},
   remotePath: string
 ): string {
   const scheme = site.protocol === 'sftp' ? 'sftp' : site.protocol === 'ftp' ? 'ftp' : 'ftps'
@@ -177,4 +177,15 @@ export function buildUrl(
   const path = remotePath.split('/').map(encodeURIComponent).join('/')
 
   return `${scheme}://${auth}${site.host}${port}${path}`
+}
+
+export function normalizeLocal(path: string): string {
+  return path.replace(/\//g, '\\').replace(/\\+$/, '').toLowerCase()
+}
+
+export function parentLocal(path: string): string {
+  const trimmed = path.replace(/[\\/]+$/, '')
+  const index = Math.max(trimmed.lastIndexOf('\\'), trimmed.lastIndexOf('/'))
+
+  return index >= 0 ? trimmed.slice(0, index) : trimmed
 }

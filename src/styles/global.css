@@ -1,9 +1,11 @@
 :root {
+  color-scheme: dark;
   --font: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
   --mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
   --radius: 6px;
   --row-height: 24px;
   --bg: #0f1420;
+  --bg-content: #0f1420;
   --bg-elev: #161c2b;
   --bg-panel: #131927;
   --bg-input: #0c111b;
@@ -36,36 +38,38 @@
 }
 
 :root[data-theme="light"] {
-  --bg: #f4f6fa;
-  --bg-elev: #ffffff;
-  --bg-panel: #fbfcfe;
+  color-scheme: light;
+  --bg: #e4e7ec;
+  --bg-content: #ffffff;
+  --bg-elev: #f0f2f5;
+  --bg-panel: #e8ebf0;
   --bg-input: #ffffff;
-  --border: #d9dfeb;
-  --border-strong: #b9c3d6;
-  --text: #1a2233;
-  --text-muted: #5a6780;
-  --text-dim: #8b96ab;
-  --accent: #2f5fe8;
-  --accent-soft: rgba(47, 95, 232, 0.12);
+  --border: #c4cad4;
+  --border-strong: #9aa3b2;
+  --text: #1b1f27;
+  --text-muted: #444c5a;
+  --text-dim: #6e7785;
+  --accent: #2b5fcf;
+  --accent-soft: rgba(43, 95, 207, 0.14);
   --accent-fg: #ffffff;
-  --danger: #d93838;
-  --danger-soft: rgba(217, 56, 56, 0.12);
-  --warning: #c98a12;
-  --warning-soft: rgba(201, 138, 18, 0.14);
-  --success: #1f9d63;
-  --success-soft: rgba(31, 157, 99, 0.14);
-  --info: #1f8fbf;
-  --hover: rgba(0, 0, 0, 0.04);
-  --selection: rgba(47, 95, 232, 0.16);
-  --selection-border: rgba(47, 95, 232, 0.5);
-  --row-alt: rgba(0, 0, 0, 0.015);
-  --scrollbar: #c3cbdb;
+  --danger: #c22f2f;
+  --danger-soft: rgba(194, 47, 47, 0.12);
+  --warning: #a86f0a;
+  --warning-soft: rgba(168, 111, 10, 0.14);
+  --success: #1d7f50;
+  --success-soft: rgba(29, 127, 80, 0.14);
+  --info: #1c739a;
+  --hover: rgba(30, 45, 80, 0.07);
+  --selection: rgba(43, 95, 207, 0.2);
+  --selection-border: rgba(43, 95, 207, 0.6);
+  --row-alt: rgba(30, 45, 80, 0.04);
+  --scrollbar: #b0b8c4;
   --shadow: 0 12px 40px rgba(20, 30, 60, 0.18);
-  --log-status: #4a5a7a;
-  --log-command: #1b62c9;
-  --log-response: #1f7a3a;
-  --log-error: #c02626;
-  --log-trace: #8b96ab;
+  --log-status: #3f4c66;
+  --log-command: #1650b0;
+  --log-response: #1b6633;
+  --log-error: #a81f1f;
+  --log-trace: #6e7785;
 }
 
 * {
@@ -150,8 +154,11 @@ button.ghost:hover:not(:disabled) {
   border-color: transparent;
 }
 button.icon {
-  padding: 3px 6px;
+  padding: 0 6px;
   min-width: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 input[type="text"],
@@ -342,11 +349,18 @@ label {
   flex-direction: column;
   flex: 1;
   min-width: 0;
-  border-right: 1px solid var(--border);
   outline: none;
 }
-.pane:last-child {
-  border-right: none;
+.vsplitter {
+  width: 5px;
+  flex: none;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  cursor: col-resize;
+}
+.vsplitter:hover {
+  background: var(--accent-soft);
 }
 .pane.focused .pane-header {
   border-bottom-color: var(--accent);
@@ -363,9 +377,15 @@ label {
   display: flex;
   align-items: center;
   gap: 6px;
+  min-height: 20px;
+}
+.pane-header .row > button.icon,
+.pane-header .row > input {
+  height: 26px;
 }
 .pane-header .label {
   font-size: 11px;
+  line-height: 1;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
@@ -381,6 +401,11 @@ label {
 }
 .pane-header .site-name {
   margin-left: auto;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  line-height: 1;
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -441,6 +466,7 @@ label {
   flex: 1;
   overflow: auto;
   position: relative;
+  background: var(--bg-content);
 }
 .filelist .row {
   position: absolute;
@@ -452,7 +478,7 @@ label {
   white-space: nowrap;
   cursor: default;
 }
-.filelist .row:nth-child(even) {
+.filelist .row.odd {
   background: var(--row-alt);
 }
 .filelist .row:hover {
@@ -466,6 +492,13 @@ label {
 }
 .filelist .row.broken .name {
   color: var(--danger);
+}
+.filelist .marquee {
+  position: absolute;
+  border: 1px solid var(--selection-border);
+  background: var(--accent-soft);
+  pointer-events: none;
+  z-index: 2;
 }
 .filelist .row.hidden-entry {
   opacity: 0.6;
@@ -596,6 +629,7 @@ label {
   flex: 1;
   min-height: 0;
   overflow: auto;
+  background: var(--bg-content);
 }
 
 .table {
@@ -930,6 +964,12 @@ label {
 }
 .sitemanager .tree .node.selected {
   background: var(--selection);
+}
+.sitemanager .tree:focus {
+  outline: none;
+}
+.sitemanager .tree:focus .node.selected {
+  box-shadow: inset 0 0 0 1px var(--selection-border);
 }
 .sitemanager .tree .node.drop {
   outline: 1px dashed var(--accent);

@@ -1,10 +1,10 @@
-import { invoke } from '@tauri-apps/api/core'
+import {invoke} from '@tauri-apps/api/core'
 
 export type Protocol = 'ftp' | 'ftps_explicit' | 'ftps_implicit' | 'sftp'
 export type LogonType = 'anonymous' | 'normal' | 'ask' | 'interactive' | 'key_file'
 export type ServerType = 'auto' | 'unix' | 'windows'
 export type TransferMode = 'default' | 'passive' | 'active'
-export type EncodingMode = { mode: 'auto' } | { mode: 'utf8' } | { mode: 'custom', label: string }
+export type EncodingMode = {mode: 'auto'} | {mode: 'utf8'} | {mode: 'custom', label: string}
 export type ConflictPolicy =
   'ask' | 'overwrite' | 'skip' | 'rename' | 'resume' | 'overwrite_if_newer'
 export type ConflictAction = Exclude<ConflictPolicy, 'ask'>
@@ -60,8 +60,8 @@ export interface Bookmark {
 }
 
 export type SiteNode =
-  | { kind: 'folder', id: string, name: string, children: SiteNode[] }
-  | { kind: 'site', site: SiteConfig, bookmarks: Bookmark[] }
+  | {kind: 'folder', id: string, name: string, children: SiteNode[]}
+  | {kind: 'site', site: SiteConfig, bookmarks: Bookmark[]}
 
 export interface SiteTree {
   root: SiteNode[]
@@ -283,10 +283,10 @@ export interface UntrustedCertificateDetail {
 }
 
 export type BackendError =
-  | { code: 'hostKeyChanged', detail: HostKeyChangedDetail }
-  | { code: 'untrustedCertificate', detail: UntrustedCertificateDetail }
-  | { code: 'openSshMissing' | 'invalidSession' | 'cancelled', detail?: undefined }
-  | { code: string, detail: string }
+  | {code: 'hostKeyChanged', detail: HostKeyChangedDetail}
+  | {code: 'untrustedCertificate', detail: UntrustedCertificateDetail}
+  | {code: 'openSshMissing' | 'invalidSession' | 'cancelled', detail?: undefined}
+  | {code: string, detail: string}
 
 export function isBackendError(value: unknown): value is BackendError {
   return typeof value === 'object' && value !== null && 'code' in value
@@ -294,7 +294,7 @@ export function isBackendError(value: unknown): value is BackendError {
 
 export function isHostKeyChanged(
   value: unknown
-): value is { code: 'hostKeyChanged', detail: HostKeyChangedDetail } {
+): value is {code: 'hostKeyChanged', detail: HostKeyChangedDetail} {
   return (
     isBackendError(value) && value.code === 'hostKeyChanged' && typeof value.detail === 'object'
   )
@@ -302,7 +302,7 @@ export function isHostKeyChanged(
 
 export function isUntrustedCertificate(
   value: unknown
-): value is { code: 'untrustedCertificate', detail: UntrustedCertificateDetail } {
+): value is {code: 'untrustedCertificate', detail: UntrustedCertificateDetail} {
   return (
     isBackendError(value) &&
     value.code === 'untrustedCertificate' &&
@@ -362,8 +362,8 @@ export function defaultSite(overrides: Partial<SiteConfig> = {}): SiteConfig {
     asciiMode: false,
     maxConnections: 2,
     conflictPolicy: null,
-    encoding: { mode: 'auto' },
-    sftp: { keyPath: '', useAgent: true, proxyJump: '', extraOptions: [] },
+    encoding: {mode: 'auto'},
+    sftp: {keyPath: '', useAgent: true, proxyJump: '', extraOptions: []},
     keepaliveSecs: 30,
     timeoutSecs: 30,
     ...overrides
@@ -385,13 +385,13 @@ export function defaultPort(protocol: Protocol): number {
 export const api = {
   systemInfo: () => invoke<SystemInfo>('system_info'),
   settingsGet: () => invoke<AppSettings>('settings_get'),
-  settingsSave: (settings: AppSettings) => invoke<void>('settings_save', { settings }),
+  settingsSave: (settings: AppSettings) => invoke<void>('settings_save', {settings}),
   sitesGet: () => invoke<SiteTree>('sites_get'),
-  sitesSave: (tree: SiteTree) => invoke<void>('sites_save', { tree }),
-  sitePasswordGet: (siteId: string) => invoke<string | null>('site_password_get', { siteId }),
+  sitesSave: (tree: SiteTree) => invoke<void>('sites_save', {tree}),
+  sitePasswordGet: (siteId: string) => invoke<string | null>('site_password_get', {siteId}),
   sitePasswordSet: (siteId: string, user: string, password: string) =>
-    invoke<void>('site_password_set', { siteId, user, password }),
-  sitesImportFileZilla: (path: string) => invoke<SiteTree>('sites_import_filezilla', { path }),
+    invoke<void>('site_password_set', {siteId, user, password}),
+  sitesImportFileZilla: (path: string) => invoke<SiteTree>('sites_import_filezilla', {path}),
   sitesImportWinScp: () => invoke<SiteTree>('sites_import_winscp'),
   recentGet: () => invoke<RecentConnection[]>('recent_get'),
   recentClear: () => invoke<void>('recent_clear'),
@@ -400,57 +400,58 @@ export const api = {
     password: string | null,
     acceptNewHostkey: boolean,
     remember: boolean
-  ) => invoke<SessionInfo>('session_connect', { site, password, acceptNewHostkey, remember }),
-  sessionDisconnect: (sessionId: string) => invoke<void>('session_disconnect', { sessionId }),
+  ) => invoke<SessionInfo>('session_connect', {site, password, acceptNewHostkey, remember}),
+  sessionDisconnect: (sessionId: string) => invoke<void>('session_disconnect', {sessionId}),
   promptAnswer: (promptId: string, answer: string | null) =>
-    invoke<boolean>('prompt_answer', { promptId, answer }),
-  hostkeyForget: (host: string, port: number) => invoke<void>('hostkey_forget', { host, port }),
+    invoke<boolean>('prompt_answer', {promptId, answer}),
+  hostkeyForget: (host: string, port: number) => invoke<void>('hostkey_forget', {host, port}),
   certificateTrust: (fingerprint: string, remember: boolean) =>
-    invoke<void>('certificate_trust', { fingerprint, remember }),
+    invoke<void>('certificate_trust', {fingerprint, remember}),
   remoteList: (sessionId: string, path: string, force = false) =>
-    invoke<Listing>('remote_list', { sessionId, path, force }),
+    invoke<Listing>('remote_list', {sessionId, path, force}),
   remoteRealpath: (sessionId: string, path: string) =>
-    invoke<string>('remote_realpath', { sessionId, path }),
+    invoke<string>('remote_realpath', {sessionId, path}),
   remoteStat: (sessionId: string, path: string) =>
-    invoke<RemoteEntry>('remote_stat', { sessionId, path }),
+    invoke<RemoteEntry>('remote_stat', {sessionId, path}),
   remoteMkdir: (sessionId: string, path: string) =>
-    invoke<void>('remote_mkdir', { sessionId, path }),
+    invoke<void>('remote_mkdir', {sessionId, path}),
   remoteTouch: (sessionId: string, path: string) =>
-    invoke<void>('remote_touch', { sessionId, path }),
+    invoke<void>('remote_touch', {sessionId, path}),
   remoteRename: (sessionId: string, from: string, to: string) =>
-    invoke<void>('remote_rename', { sessionId, from, to }),
+    invoke<void>('remote_rename', {sessionId, from, to}),
   remoteChmod: (sessionId: string, paths: string[], mode: number) =>
-    invoke<void>('remote_chmod', { sessionId, paths, mode }),
-  remoteDelete: (sessionId: string, targets: { path: string, isDir: boolean }[]) =>
-    invoke<void>('remote_delete', { sessionId, targets }),
+    invoke<void>('remote_chmod', {sessionId, paths, mode}),
+  remoteDelete: (sessionId: string, targets: {path: string, isDir: boolean}[]) =>
+    invoke<void>('remote_delete', {sessionId, targets}),
   remoteResolveLink: (sessionId: string, path: string) =>
-    invoke<LinkTarget>('remote_resolve_link', { sessionId, path }),
+    invoke<LinkTarget>('remote_resolve_link', {sessionId, path}),
   remoteEditOpen: (sessionId: string, path: string) =>
-    invoke<string>('remote_edit_open', { sessionId, path }),
+    invoke<string>('remote_edit_open', {sessionId, path}),
   localList: (path: string, showHidden?: boolean) =>
-    invoke<LocalListing>('local_list', { path, showHidden }),
+    invoke<LocalListing>('local_list', {path, showHidden}),
   localHome: () => invoke<string>('local_home'),
-  localMkdir: (path: string) => invoke<void>('local_mkdir', { path }),
-  localTouch: (path: string) => invoke<void>('local_touch', { path }),
-  localRename: (from: string, to: string) => invoke<void>('local_rename', { from, to }),
-  localDelete: (paths: string[]) => invoke<void>('local_delete', { paths }),
-  localResolveLink: (path: string) => invoke<LinkTarget>('local_resolve_link', { path }),
-  queueAdd: (requests: QueueRequest[]) => invoke<string[]>('queue_add', { requests }),
+  localMkdir: (path: string) => invoke<void>('local_mkdir', {path}),
+  localTouch: (path: string) => invoke<void>('local_touch', {path}),
+  localRename: (from: string, to: string) => invoke<void>('local_rename', {from, to}),
+  localDelete: (paths: string[]) => invoke<void>('local_delete', {paths}),
+  localResolveLink: (path: string) => invoke<LinkTarget>('local_resolve_link', {path}),
+  queueAdd: (requests: QueueRequest[]) => invoke<string[]>('queue_add', {requests}),
   queueSnapshot: () => invoke<QueueSnapshot>('queue_snapshot'),
   queueStats: () => invoke<QueueStats>('queue_stats'),
-  queuePause: (id: string) => invoke<void>('queue_pause', { id }),
-  queueResume: (id: string) => invoke<void>('queue_resume', { id }),
-  queueRemove: (id: string) => invoke<void>('queue_remove', { id }),
-  queueMove: (id: string, index: number) => invoke<void>('queue_move', { id, index }),
-  queuePriority: (id: string, priority: number) => invoke<void>('queue_priority', { id, priority }),
+  queuePause: (id: string) => invoke<void>('queue_pause', {id}),
+  queueResume: (id: string) => invoke<void>('queue_resume', {id}),
+  queueRemove: (id: string) => invoke<void>('queue_remove', {id}),
+  queueMove: (id: string, index: number) => invoke<void>('queue_move', {id, index}),
+  queuePriority: (id: string, priority: number) => invoke<void>('queue_priority', {id, priority}),
   queuePauseAll: () => invoke<void>('queue_pause_all'),
   queueResumeAll: () => invoke<void>('queue_resume_all'),
   queueRetryFailed: () => invoke<void>('queue_retry_failed'),
   queueRemoveFailed: () => invoke<void>('queue_remove_failed'),
+  queueClear: () => invoke<void>('queue_clear'),
   queueClearHistory: () => invoke<void>('queue_clear_history'),
   conflictAnswer: (itemId: string, action: ConflictAction, applyToAll: boolean) =>
-    invoke<boolean>('conflict_answer', { itemId, answer: { action, applyToAll } }),
-  syncCompare: (request: SyncRequest) => invoke<DiffEntry[]>('sync_compare', { request }),
-  openPath: (path: string) => invoke<void>('open_path', { path }),
-  fileIcons: (keys: string[]) => invoke<Record<string, string | null>>('file_icons', { keys })
+    invoke<boolean>('conflict_answer', {itemId, answer: {action, applyToAll}}),
+  syncCompare: (request: SyncRequest) => invoke<DiffEntry[]>('sync_compare', {request}),
+  openPath: (path: string) => invoke<void>('open_path', {path}),
+  fileIcons: (keys: string[]) => invoke<Record<string, string | null>>('file_icons', {keys})
 }

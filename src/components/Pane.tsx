@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { paneKeymap, type PaneCommand } from '@/keybindings'
-import { api } from '@/lib/api'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {paneKeymap, type PaneCommand} from '@/keybindings'
+import {api} from '@/lib/api'
 import {
   filterEntries,
   isDirLike,
@@ -9,7 +9,7 @@ import {
   type Entry,
   type SortKey
 } from '@/lib/entries'
-import { isTextInput, type CommandHandlers } from '@/lib/keymap'
+import {isTextInput, type CommandHandlers} from '@/lib/keymap'
 import {
   copyUrls,
   createFile,
@@ -26,19 +26,20 @@ import {
   transferEntries,
   viewEdit
 } from '@/state/actions'
-import { useStore, useT, type ColumnWidths, type PaneSide } from '@/state/store'
-import { ContextMenu, type MenuItem, type MenuState } from './ContextMenu'
-import { beginEntryDrag, FileList } from './FileList'
-import { ArrowIcon, RefreshIcon } from './Icons'
+import {useStore, useT, type ColumnWidths, type PaneSide} from '@/state/store'
+import {ContextMenu, type MenuItem, type MenuState} from './ContextMenu'
+import {beginEntryDrag, FileList} from './FileList'
+import {ArrowIcon, RefreshIcon} from './Icons'
 
 const PAGE_SIZE = 20
 
 interface Props {
   tabId: string,
-  side: PaneSide
+  side: PaneSide,
+  style?: React.CSSProperties
 }
 
-export function Pane({ tabId, side }: Props) {
+export function Pane({tabId, side, style}: Props) {
   const t = useT()
   const tab = useStore((s) => s.tabs.find((x) => x.id === tabId))
   const focused = useStore((s) => s.focusedPane === side)
@@ -66,7 +67,7 @@ export function Pane({ tabId, side }: Props) {
   const connected = isRemote ? Boolean(tab?.sessionId) : true
 
   const select = useCallback(
-    (selected: string[], cursor: string | null) => updatePane(tabId, side, { selected, cursor }),
+    (selected: string[], cursor: string | null) => updatePane(tabId, side, {selected, cursor}),
     [tabId, side, updatePane]
   )
 
@@ -77,11 +78,11 @@ export function Pane({ tabId, side }: Props) {
     initial: string,
     onSubmit: (value: string) => void | Promise<void>,
     selectStem = false
-  ) => openDialog({ kind: 'input', title, label: t('dialog.name'), initial, selectStem, onSubmit })
+  ) => openDialog({kind: 'input', title, label: t('dialog.name'), initial, selectStem, onSubmit})
 
   const actions = {
     transfer: (entries: Entry[]) => transferEntries(tabId, side, entries),
-    enqueue: (entries: Entry[]) => transferEntries(tabId, side, entries, { startPaused: true }),
+    enqueue: (entries: Entry[]) => transferEntries(tabId, side, entries, {startPaused: true}),
     newFolder: (enter: boolean) =>
       promptName(t('dialog.newFolder'), '', (name) => createFolder(tabId, side, name, enter)),
     newFile: () => promptName(t('dialog.newFile'), '', (name) => createFile(tabId, side, name)),
@@ -120,15 +121,15 @@ export function Pane({ tabId, side }: Props) {
           onClick: () => actions.newFolder(true),
           disabled: !connected
         },
-        { label: t('ctx.newFile'), onClick: () => actions.newFile(), disabled: !connected },
-        { separator: true },
+        {label: t('ctx.newFile'), onClick: () => actions.newFile(), disabled: !connected},
+        {separator: true},
         {
           label: t('ctx.refresh'),
           shortcut: paneKeymap.label('refresh'),
           onClick: actions.refresh,
           disabled: !connected
         },
-        { separator: true },
+        {separator: true},
         {
           label: t('menu.selectAll'),
           shortcut: paneKeymap.label('selectAll'),
@@ -153,7 +154,7 @@ export function Pane({ tabId, side }: Props) {
         onClick: () => actions.enqueue(selection),
         disabled: !tab?.sessionId
       },
-      { separator: true },
+      {separator: true},
       {
         label: isRemote ? t('ctx.viewEdit') : t('ctx.open'),
         shortcut: paneKeymap.label('viewEdit'),
@@ -170,16 +171,16 @@ export function Pane({ tabId, side }: Props) {
         hidden: !single || !isLink(single),
         onClick: () => single && goToTarget(tabId, side, single)
       },
-      { separator: true },
+      {separator: true},
       {
         label: t('ctx.newFolder'),
         shortcut: paneKeymap.label('newFolder'),
         onClick: () => actions.newFolder(false)
       },
-      { label: t('ctx.newFolderEnter'), onClick: () => actions.newFolder(true) },
-      { label: t('ctx.newFile'), onClick: () => actions.newFile() },
-      { label: t('ctx.refresh'), shortcut: paneKeymap.label('refresh'), onClick: actions.refresh },
-      { separator: true },
+      {label: t('ctx.newFolderEnter'), onClick: () => actions.newFolder(true)},
+      {label: t('ctx.newFile'), onClick: () => actions.newFile()},
+      {label: t('ctx.refresh'), shortcut: paneKeymap.label('refresh'), onClick: actions.refresh},
+      {separator: true},
       {
         label: t('ctx.delete'),
         shortcut: paneKeymap.label('delete'),
@@ -192,7 +193,7 @@ export function Pane({ tabId, side }: Props) {
         disabled: !single,
         onClick: () => single && actions.rename(single)
       },
-      { separator: true },
+      {separator: true},
       {
         label: isRemote ? t('ctx.copyUrl') : t('ctx.copyPath'),
         onClick: () => tab && copyUrls(tab, side, selection)
@@ -205,7 +206,7 @@ export function Pane({ tabId, side }: Props) {
       {
         label: t('ctx.permissions'),
         hidden: !isRemote,
-        onClick: () => openDialog({ kind: 'permissions', tabId, entries: selection })
+        onClick: () => openDialog({kind: 'permissions', tabId, entries: selection})
       }
     ]
   }
@@ -264,11 +265,11 @@ export function Pane({ tabId, side }: Props) {
       return
     }
 
-    paneKeymap.dispatch(event, commandHandlers(), { inInput: isTextInput(event.target) })
+    paneKeymap.dispatch(event, commandHandlers(), {inInput: isTextInput(event.target)})
   }
 
   const onDragEntries = (event: React.MouseEvent, entries: Entry[]) => {
-    const label = entries.length === 1 ? entries[0].name : t('status.items', { n: entries.length })
+    const label = entries.length === 1 ? entries[0].name : t('status.items', {n: entries.length})
     let lastPane: Element | null = null
     beginEntryDrag(
       event,
@@ -289,7 +290,7 @@ export function Pane({ tabId, side }: Props) {
           return
         }
 
-        void transferEntries(tabId, side, entries, { destDir })
+        void transferEntries(tabId, side, entries, {destDir})
       },
       (target) => {
         const list =
@@ -316,6 +317,7 @@ export function Pane({ tabId, side }: Props) {
     <div
       ref={containerRef}
       className={`pane${focused ? ' focused' : ''}`}
+      style={style}
       data-side={side}
       data-tab={tabId}
       tabIndex={0}
@@ -389,10 +391,10 @@ export function Pane({ tabId, side }: Props) {
             placeholder={t('pane.filter')}
             value={pane.filter}
             disabled={!connected}
-            onChange={(e) => updatePane(tabId, side, { filter: e.target.value })}
+            onChange={(e) => updatePane(tabId, side, {filter: e.target.value})}
             onKeyDown={(e) => {
               if (e.key === 'Escape') {
-                updatePane(tabId, side, { filter: '' })
+                updatePane(tabId, side, {filter: ''})
                 containerRef.current?.focus()
               }
             }}
@@ -428,7 +430,7 @@ export function Pane({ tabId, side }: Props) {
           }))
         }
         onResize={(column: keyof ColumnWidths, width: number) =>
-          updatePane(tabId, side, (p) => ({ columns: { ...p.columns, [column]: width } }))
+          updatePane(tabId, side, (p) => ({columns: {...p.columns, [column]: width}}))
         }
         onContextMenu={(event, entry) =>
           setMenu({

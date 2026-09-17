@@ -470,6 +470,11 @@ pub fn queue_remove_failed(state: App<'_>) {
 }
 
 #[tauri::command]
+pub fn queue_clear(state: App<'_>) {
+  state.queue.clear();
+}
+
+#[tauri::command]
 pub fn queue_clear_history(state: App<'_>) {
   state.queue.clear_history();
 }

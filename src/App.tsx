@@ -1,17 +1,17 @@
-import { useEffect, useRef } from 'react'
-import { getCurrentWebview } from '@tauri-apps/api/webview'
-import { BottomPanel } from './components/BottomPanel'
-import { Dialogs } from './components/dialogs/Dialogs'
-import { MenuBar } from './components/MenuBar'
-import { Pane } from './components/Pane'
-import { QuickConnectBar } from './components/QuickConnectBar'
-import { StatusBar } from './components/StatusBar'
-import { TabBar } from './components/TabBar'
-import { Toasts } from './components/Toasts'
-import { useGlobalKeymap } from './hooks/useKeymap'
-import { globalKeymap } from './keybindings'
-import { bootstrap, closeTab, newTab, toastError, uploadLocalPaths } from './state/actions'
-import { useStore, useT } from './state/store'
+import {useEffect, useRef} from 'react'
+import {getCurrentWebview} from '@tauri-apps/api/webview'
+import {BottomPanel} from './components/BottomPanel'
+import {Dialogs} from './components/dialogs/Dialogs'
+import {MenuBar} from './components/MenuBar'
+import {Pane} from './components/Pane'
+import {QuickConnectBar} from './components/QuickConnectBar'
+import {StatusBar} from './components/StatusBar'
+import {TabBar} from './components/TabBar'
+import {Toasts} from './components/Toasts'
+import {useBrowserShortcutGuard, useGlobalKeymap} from './hooks/useKeymap'
+import {browserShortcuts, globalKeymap} from './keybindings'
+import {bootstrap, closeTab, newTab, refresh, toastError, uploadLocalPaths} from './state/actions'
+import {useStore, useT} from './state/store'
 
 export function App() {
   const t = useT()
@@ -21,9 +21,13 @@ export function App() {
   const system = useStore((s) => s.system)
   const openDialog = useStore((s) => s.openDialog)
   const setActiveTab = useStore((s) => s.setActiveTab)
+  const focusedPane = useStore((s) => s.focusedPane)
   const dialogsOpen = useStore((s) => s.dialogs.length > 0)
   const setBottomHeight = useStore((s) => s.setBottomHeight)
   const bottomHeight = useStore((s) => s.bottomHeight)
+  const paneSplit = useStore((s) => s.paneSplit)
+  const setPaneSplit = useStore((s) => s.setPaneSplit)
+  const panesRef = useRef<HTMLDivElement>(null)
   const workspaceRef = useRef<HTMLDivElement>(null)
   const highlighted = useRef<Element | null>(null)
 
@@ -46,12 +50,14 @@ export function App() {
     {
       newTab: () => newTab(),
       closeTab: () => activeTabId && closeTab(activeTabId),
-      siteManager: () => openDialog({ kind: 'siteManager' }),
+      siteManager: () => openDialog({kind: 'siteManager'}),
       nextTab: () => cycleTab(1),
-      previousTab: () => cycleTab(-1)
+      previousTab: () => cycleTab(-1),
+      refresh: () => activeTabId && refresh(activeTabId, focusedPane)
     },
     !dialogsOpen
   )
+  useBrowserShortcutGuard(browserShortcuts)
 
   useEffect(() => {
     let unlisten: (() => void) | null = null
@@ -126,6 +132,24 @@ export function App() {
     window.addEventListener('mouseup', up)
   }
 
+  const startPaneSplit = (event: React.MouseEvent) => {
+    event.preventDefault()
+    const move = (e: MouseEvent) => {
+      const rect = panesRef.current?.getBoundingClientRect()
+
+      if (rect && rect.width > 0) {
+        setPaneSplit((e.clientX - rect.left) / rect.width)
+      }
+    }
+
+    const up = () => {
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', up)
+    }
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', up)
+  }
+
   const activeTab = tabs.find((tab) => tab.id === activeTabId)
   const paneOrder: ('local' | 'remote')[] = settings.localPaneLeft
     ? ['local', 'remote']
@@ -138,11 +162,24 @@ export function App() {
       <QuickConnectBar />
       <TabBar />
       <div className="workspace" ref={workspaceRef}>
-        <div className="panes">
-          {activeTab &&
-            paneOrder.map((side) => (
-              <Pane key={`${activeTab.id}-${side}`} tabId={activeTab.id} side={side} />
-            ))}
+        <div className="panes" ref={panesRef}>
+          {activeTab && (
+            <>
+              <Pane
+                key={`${activeTab.id}-${paneOrder[0]}`}
+                tabId={activeTab.id}
+                side={paneOrder[0]}
+                style={{flex: `${paneSplit} 1 0%`}}
+              />
+              <div className="vsplitter" onMouseDown={startPaneSplit} />
+              <Pane
+                key={`${activeTab.id}-${paneOrder[1]}`}
+                tabId={activeTab.id}
+                side={paneOrder[1]}
+                style={{flex: `${1 - paneSplit} 1 0%`}}
+              />
+            </>
+          )}
         </div>
         <div className="splitter" onMouseDown={startSplit} />
         <BottomPanel />

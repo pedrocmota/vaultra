@@ -1,7 +1,7 @@
-import { create } from 'zustand'
-import { api } from '@/lib/api'
-import type { Entry } from '@/lib/entries'
-import { isDirLike } from '@/lib/entries'
+import {create} from 'zustand'
+import {api} from '@/lib/api'
+import type {Entry} from '@/lib/entries'
+import {isDirLike} from '@/lib/entries'
 
 interface IconStore {
   icons: Record<string, string | null>,
@@ -10,7 +10,7 @@ interface IconStore {
 
 export const useIconStore = create<IconStore>((set) => ({
   icons: {},
-  merge: (batch) => set((state) => ({ icons: { ...state.icons, ...batch } }))
+  merge: (batch) => set((state) => ({icons: {...state.icons, ...batch}}))
 }))
 
 const pending = new Set<string>()

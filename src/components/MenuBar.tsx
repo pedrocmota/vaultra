@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
-import { getCurrentWindow } from '@tauri-apps/api/window'
-import { globalKeymap, paneKeymap } from '@/keybindings'
-import { api, type RecentConnection } from '@/lib/api'
+import {useEffect, useRef, useState} from 'react'
+import {getCurrentWindow} from '@tauri-apps/api/window'
+import {globalKeymap, paneKeymap} from '@/keybindings'
+import {api, type RecentConnection} from '@/lib/api'
 import {
+  clearQueue,
   closeTab,
   connectSite,
   disconnectTab,
@@ -13,8 +14,8 @@ import {
   refresh,
   updateSettings
 } from '@/state/actions'
-import { useStore, useT } from '@/state/store'
-import type { MenuItem } from './ContextMenu'
+import {useStore, useT} from '@/state/store'
+import type {MenuItem} from './ContextMenu'
 
 export function MenuBar() {
   const t = useT()
@@ -23,6 +24,10 @@ export function MenuBar() {
   const activeTabId = useStore((s) => s.activeTabId)
   const tab = useStore((s) => s.tabs.find((x) => x.id === s.activeTabId))
   const focusedPane = useStore((s) => s.focusedPane)
+  const queueLength = useStore(
+    (s) => s.queue.items.filter((i) => i.status !== 'failed').length
+  )
+
   const openDialog = useStore((s) => s.openDialog)
   const [open, setOpen] = useState<string | null>(null)
   const [recent, setRecent] = useState<RecentConnection[]>([])
@@ -62,7 +67,7 @@ export function MenuBar() {
     }
   }, [open])
 
-  const menus: { id: string, label: string, items: MenuItem[] }[] = [
+  const menus: {id: string, label: string, items: MenuItem[]}[] = [
     {
       id: 'file',
       label: t('menu.file'),
@@ -70,7 +75,7 @@ export function MenuBar() {
         {
           label: t('menu.siteManager'),
           shortcut: globalKeymap.label('siteManager'),
-          onClick: () => openDialog({ kind: 'siteManager' })
+          onClick: () => openDialog({kind: 'siteManager'})
         },
         {
           label: t('menu.newTab'),
@@ -87,7 +92,7 @@ export function MenuBar() {
           disabled: !tab?.sessionId,
           onClick: () => activeTabId && void disconnectTab(activeTabId)
         },
-        { separator: true },
+        {separator: true},
         ...(recent.length
           ? [
             ...recent.slice(0, 8).map<MenuItem>((r) => ({
@@ -98,12 +103,12 @@ export function MenuBar() {
               label: t('menu.clearRecent'),
               onClick: () => void api.recentClear().then(() => setRecent([]))
             },
-            { separator: true }
+            {separator: true}
           ]
           : []),
-        { label: t('menu.importFileZilla'), onClick: () => void importFileZilla() },
-        { label: t('menu.importWinScp'), onClick: () => void importWinScp() },
-        { separator: true },
+        {label: t('menu.importFileZilla'), onClick: () => void importFileZilla()},
+        {label: t('menu.importWinScp'), onClick: () => void importWinScp()},
+        {separator: true},
         {
           label: t('menu.exit'),
           shortcut: 'Alt+F4',
@@ -114,7 +119,7 @@ export function MenuBar() {
     {
       id: 'edit',
       label: t('menu.edit'),
-      items: [{ label: t('menu.settings'), onClick: () => openDialog({ kind: 'settings' }) }]
+      items: [{label: t('menu.settings'), onClick: () => openDialog({kind: 'settings'})}]
     },
     {
       id: 'view',
@@ -128,27 +133,27 @@ export function MenuBar() {
         {
           label: t('menu.showHidden'),
           checked: settings.showHidden,
-          onClick: () => void updateSettings({ showHidden: !settings.showHidden })
+          onClick: () => void updateSettings({showHidden: !settings.showHidden})
         },
         {
           label: t('menu.swapPanes'),
-          onClick: () => void updateSettings({ localPaneLeft: !settings.localPaneLeft })
+          onClick: () => void updateSettings({localPaneLeft: !settings.localPaneLeft})
         },
-        { separator: true },
+        {separator: true},
         {
           label: `${t('menu.theme')}: ${t('menu.themeDark')}`,
           checked: settings.theme === 'dark',
-          onClick: () => void updateSettings({ theme: 'dark' })
+          onClick: () => void updateSettings({theme: 'dark'})
         },
         {
           label: `${t('menu.theme')}: ${t('menu.themeLight')}`,
           checked: settings.theme === 'light',
-          onClick: () => void updateSettings({ theme: 'light' })
+          onClick: () => void updateSettings({theme: 'light'})
         },
         {
           label: `${t('menu.theme')}: ${t('menu.themeSystem')}`,
           checked: settings.theme === 'system',
-          onClick: () => void updateSettings({ theme: 'system' })
+          onClick: () => void updateSettings({theme: 'system'})
         }
       ]
     },
@@ -156,13 +161,14 @@ export function MenuBar() {
       id: 'transfer',
       label: t('menu.transfer'),
       items: [
-        { label: t('menu.processQueue'), onClick: () => void queueActions.resumeAll() },
-        { label: t('menu.pauseAll'), onClick: () => void queueActions.pauseAll() },
-        { separator: true },
+        {label: t('menu.processQueue'), onClick: () => void queueActions.resumeAll()},
+        {label: t('menu.pauseAll'), onClick: () => void queueActions.pauseAll()},
+        {label: t('menu.clearQueue'), onClick: () => clearQueue(queueLength)},
+        {separator: true},
         {
           label: t('menu.sync'),
           disabled: !tab?.sessionId,
-          onClick: () => activeTabId && openDialog({ kind: 'sync', tabId: activeTabId })
+          onClick: () => activeTabId && openDialog({kind: 'sync', tabId: activeTabId})
         }
       ]
     },
@@ -170,8 +176,8 @@ export function MenuBar() {
       id: 'help',
       label: t('menu.help'),
       items: [
-        { label: t('menu.openLogs'), onClick: () => system && void api.openPath(system.logDir) },
-        { label: t('menu.about'), onClick: () => openDialog({ kind: 'about' }) }
+        {label: t('menu.openLogs'), onClick: () => system && void api.openPath(system.logDir)},
+        {label: t('menu.about'), onClick: () => openDialog({kind: 'about'})}
       ]
     }
   ]

@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { Modal } from '@/components/Modal'
-import { languages } from '@/i18n'
-import type { AppSettings, ConflictPolicy, SymlinkDownload, Theme } from '@/lib/api'
-import { pickDirectory, saveSettings } from '@/state/actions'
-import { useStore, useT } from '@/state/store'
+import {useState} from 'react'
+import {Modal} from '@/components/Modal'
+import {NumberInput} from '@/components/NumberInput'
+import {languages} from '@/i18n'
+import type {AppSettings, ConflictPolicy, SymlinkDownload, Theme} from '@/lib/api'
+import {pickDirectory, saveSettings} from '@/state/actions'
+import {useStore, useT} from '@/state/store'
 
 const POLICIES: ConflictPolicy[] = [
   'ask',
@@ -57,15 +58,12 @@ export function ConflictPolicySelect({
   )
 }
 
-export function SettingsDialog({ close }: { close: () => void }) {
+export function SettingsDialog({close}: {close: () => void}) {
   const t = useT()
   const current = useStore((s) => s.settings)
-  const [draft, setDraft] = useState<AppSettings>({ ...current })
+  const [draft, setDraft] = useState<AppSettings>({...current})
   const update = <K extends keyof AppSettings>(key: K, value: AppSettings[K]) =>
-    setDraft((d) => ({ ...d, [key]: value }))
-
-  const number = (key: keyof AppSettings, value: string, min = 0) =>
-    update(key, Math.max(min, Number(value) || 0) as never)
+    setDraft((d) => ({...d, [key]: value}))
 
   return (
     <Modal
@@ -88,7 +86,7 @@ export function SettingsDialog({ close }: { close: () => void }) {
       }
     >
       <div className="form">
-        <span className="k full" style={{ fontWeight: 600 }}>
+        <span className="k full" style={{fontWeight: 600}}>
           {t('settings.general')}
         </span>
         <span className="k">{t('settings.theme')}</span>
@@ -158,14 +156,13 @@ export function SettingsDialog({ close }: { close: () => void }) {
           {t('settings.confirmDelete')}
         </label>
         <span className="k">{t('settings.cacheTtl')}</span>
-        <input
-          type="number"
+        <NumberInput
           min={1}
           value={draft.cacheTtlSecs}
-          onChange={(e) => number('cacheTtlSecs', e.target.value, 1)}
+          onCommit={(v) => update('cacheTtlSecs', v)}
         />
 
-        <span className="k full" style={{ fontWeight: 600, marginTop: 8 }}>
+        <span className="k full" style={{fontWeight: 600, marginTop: 8}}>
           {t('settings.transfers')}
         </span>
         <span className="k">{t('settings.conflictPolicy')}</span>
@@ -182,26 +179,23 @@ export function SettingsDialog({ close }: { close: () => void }) {
           <option value="copy_link">{t('settings.symlink.copyLink')}</option>
         </select>
         <span className="k">{t('settings.maxRetries')}</span>
-        <input
-          type="number"
+        <NumberInput
           min={0}
           value={draft.maxRetries}
-          onChange={(e) => number('maxRetries', e.target.value)}
+          onCommit={(v) => update('maxRetries', v)}
         />
         <span className="k">{t('settings.retryBackoff')}</span>
-        <input
-          type="number"
+        <NumberInput
           min={250}
           step={250}
           value={draft.retryBackoffMs}
-          onChange={(e) => number('retryBackoffMs', e.target.value, 250)}
+          onCommit={(v) => update('retryBackoffMs', v)}
         />
         <span className="k">{t('settings.bandwidth')}</span>
-        <input
-          type="number"
+        <NumberInput
           min={0}
           value={draft.bandwidthLimitKbps}
-          onChange={(e) => number('bandwidthLimitKbps', e.target.value)}
+          onCommit={(v) => update('bandwidthLimitKbps', v)}
         />
         <span className="k" />
         <label>
@@ -213,22 +207,20 @@ export function SettingsDialog({ close }: { close: () => void }) {
           {t('settings.verifyHash')}
         </label>
 
-        <span className="k full" style={{ fontWeight: 600, marginTop: 8 }}>
+        <span className="k full" style={{fontWeight: 600, marginTop: 8}}>
           {t('settings.connection')}
         </span>
         <span className="k">{t('settings.keepalive')}</span>
-        <input
-          type="number"
+        <NumberInput
           min={0}
           value={draft.keepaliveSecs}
-          onChange={(e) => number('keepaliveSecs', e.target.value)}
+          onCommit={(v) => update('keepaliveSecs', v)}
         />
         <span className="k">{t('settings.timeout')}</span>
-        <input
-          type="number"
+        <NumberInput
           min={5}
           value={draft.timeoutSecs}
-          onChange={(e) => number('timeoutSecs', e.target.value, 5)}
+          onCommit={(v) => update('timeoutSecs', v)}
         />
       </div>
     </Modal>

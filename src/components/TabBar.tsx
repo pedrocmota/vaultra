@@ -1,5 +1,5 @@
-import { closeTab, newTab } from '@/state/actions'
-import { useStore, useT } from '@/state/store'
+import {closeTab, newTab} from '@/state/actions'
+import {useStore, useT} from '@/state/store'
 
 export function TabBar() {
   const t = useT()

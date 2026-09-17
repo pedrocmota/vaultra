@@ -1,4 +1,4 @@
-import type { LocalEntry, RemoteEntry } from './api'
+import type {LocalEntry, RemoteEntry} from './api'
 
 export type EntryKind = 'file' | 'dir' | 'symlink' | 'junction' | 'shortcut' | 'drive' | 'other'
 
@@ -71,7 +71,7 @@ export function isDirLike(entry: Entry): boolean {
   return isLink(entry) && entry.targetIsDir === true
 }
 
-const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' })
+const collator = new Intl.Collator(undefined, {numeric: true, sensitivity: 'base'})
 
 export function sortEntries(entries: Entry[], sort: SortSpec): Entry[] {
   const factor = sort.direction === 'asc' ? 1 : -1
@@ -126,4 +126,33 @@ export function filterEntries(entries: Entry[], filter: string): Entry[] {
 
 export function totalSize(entries: Entry[]): number {
   return entries.reduce((sum, e) => (isDirLike(e) ? sum : sum + e.size), 0)
+}
+const EXECUTABLE_EXTENSIONS = new Set([
+  'exe',
+  'com',
+  'bat',
+  'cmd',
+  'msi',
+  'msix',
+  'msp',
+  'scr',
+  'pif',
+  'cpl',
+  'ps1',
+  'vbs',
+  'vbe',
+  'wsf',
+  'wsh',
+  'hta',
+  'jar'
+])
+
+export function isExecutable(entry: Entry): boolean {
+  const dot = entry.name.lastIndexOf('.')
+
+  if (dot <= 0) {
+    return false
+  }
+
+  return EXECUTABLE_EXTENSIONS.has(entry.name.slice(dot + 1).toLowerCase())
 }

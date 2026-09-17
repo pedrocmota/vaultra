@@ -20,6 +20,22 @@ export interface ResolveOptions {
 
 type KeyboardLike = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'shiftKey' | 'altKey' | 'metaKey'>
 
+type DispatchableEvent = KeyboardLike & {preventDefault: () => void, nativeEvent?: Event}
+
+const handledEvents = new WeakSet<object>()
+
+function nativeOf(event: DispatchableEvent): object {
+  return event.nativeEvent ?? event
+}
+
+export function markHandled(event: DispatchableEvent): void {
+  handledEvents.add(nativeOf(event))
+}
+
+export function wasHandled(event: DispatchableEvent): boolean {
+  return handledEvents.has(nativeOf(event))
+}
+
 const KEY_ALIASES: Record<string, string> = {
   ArrowUp: 'Up',
   ArrowDown: 'Down',
@@ -44,11 +60,11 @@ function chordId(chord: KeyChord): string {
 
 function normalizeBinding(
   entry: string | string[] | KeyBinding
-): Required<KeyBinding> & { keys: string[] } {
-  const binding = typeof entry === 'string' || Array.isArray(entry) ? { keys: entry } : entry
+): Required<KeyBinding> & {keys: string[]} {
+  const binding = typeof entry === 'string' || Array.isArray(entry) ? {keys: entry} : entry
   const keys = Array.isArray(binding.keys) ? binding.keys : [binding.keys]
 
-  return { keys, inInputs: binding.inInputs ?? false }
+  return {keys, inInputs: binding.inInputs ?? false}
 }
 
 export function parseChord(shortcut: string): KeyChord {
@@ -87,7 +103,7 @@ export function isTextInput(target: EventTarget | null): boolean {
 }
 
 export class Keymap<C extends string> {
-  private readonly byChord = new Map<string, { command: C, inInputs: boolean }>()
+  private readonly byChord = new Map<string, {command: C, inInputs: boolean}>()
 
   private readonly labels = new Map<C, string>()
 
@@ -102,7 +118,7 @@ export class Keymap<C extends string> {
           throw new Error(`Shortcut "${shortcut}" is bound more than once`)
         }
 
-        this.byChord.set(id, { command, inInputs: binding.inInputs })
+        this.byChord.set(id, {command, inInputs: binding.inInputs})
       }
 
       this.labels.set(command, binding.keys[0])
@@ -123,11 +139,19 @@ export class Keymap<C extends string> {
     return this.labels.get(command) ?? ''
   }
 
+  public matches(event: KeyboardLike): boolean {
+    return this.byChord.has(chordId(chordFromEvent(event)))
+  }
+
   public dispatch(
-    event: KeyboardLike & { preventDefault: () => void },
+    event: DispatchableEvent,
     handlers: CommandHandlers<C>,
     options: ResolveOptions = {}
   ): boolean {
+    if (wasHandled(event)) {
+      return false
+    }
+
     const command = this.resolve(event, options)
 
     if (!command) {
@@ -135,6 +159,7 @@ export class Keymap<C extends string> {
     }
 
     event.preventDefault()
+    markHandled(event)
     void handlers[command]()
 
     return true

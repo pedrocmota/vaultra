@@ -28,6 +28,7 @@ pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_opener::init())
+    .plugin(tauri_plugin_window_state::Builder::default().build())
     .setup(|app| {
       let handle = app.handle().clone();
       let credentials: Arc<dyn credentials::CredentialStore> =
@@ -112,6 +113,7 @@ pub fn run() {
       commands::queue_resume_all,
       commands::queue_retry_failed,
       commands::queue_remove_failed,
+      commands::queue_clear,
       commands::queue_clear_history,
       commands::conflict_answer,
       commands::sync_compare,
