@@ -1,0 +1,33 @@
+{
+  "vitest.disableWorkspaceWarning": true,
+  "eslint.options": {
+    "rulePaths": [
+      "scripts/eslint-rules"
+    ]
+  },
+  "eslint.validate": [
+    "javascript",
+    "typescriptreact",
+    "typescript"
+  ],
+  "eslint.rules.customizations": [
+    {
+      "rule": "no-padded-blocks",
+      "severity": "off"
+    }
+  ],
+  "[typescript]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "vscode.typescript-language-features"
+  },
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+    "editor.formatOnSave": true
+  },
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.linkedProjects": [
+    "src-tauri/Cargo.toml"
+  ]
+}
