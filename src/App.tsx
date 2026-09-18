@@ -10,6 +10,7 @@ import {TabBar} from './components/TabBar'
 import {Toasts} from './components/Toasts'
 import {useBrowserShortcutGuard, useGlobalKeymap} from './hooks/useKeymap'
 import {browserShortcuts, globalKeymap} from './keybindings'
+import {createDropHighlighter, resolveDropTarget} from './lib/dropTarget'
 import {
   bootstrap,
   closeTab,
@@ -39,7 +40,7 @@ export function App() {
   const setPaneSplit = useStore((s) => s.setPaneSplit)
   const panesRef = useRef<HTMLDivElement>(null)
   const workspaceRef = useRef<HTMLDivElement>(null)
-  const highlighted = useRef<Element | null>(null)
+  const highlighter = useRef(createDropHighlighter())
 
   useEffect(() => {
     bootstrap()
@@ -75,13 +76,10 @@ export function App() {
     let unlisten: (() => void) | null = null
     getCurrentWebview()
       .onDragDropEvent((event) => {
-        const clear = () => {
-          highlighted.current?.classList.remove('drop-target')
-          highlighted.current = null
-        }
+        const highlight = highlighter.current
 
         if (event.payload.type === 'leave' || isNativeDragActive()) {
-          clear()
+          highlight.clear()
 
           return
         }
@@ -89,41 +87,25 @@ export function App() {
         const position = event.payload.position
         const scale = window.devicePixelRatio || 1
         const element = document.elementFromPoint(position.x / scale, position.y / scale)
-        const pane = element?.closest<HTMLElement>('.pane[data-side]')
-        const list = pane?.querySelector('.filelist') ?? null
 
         if (event.payload.type === 'enter' || event.payload.type === 'over') {
-          if (list !== highlighted.current) {
-            clear()
-
-            if (list) {
-              list.classList.add('drop-target')
-              highlighted.current = list
-            }
-          }
+          highlight.update(element, () => true)
 
           return
         }
 
         if (event.payload.type === 'drop') {
-          clear()
+          highlight.clear()
+          const target = resolveDropTarget(element)
 
-          if (!pane) {
+          if (!target) {
             return
           }
 
-          const tabId = pane.dataset.tab
-          const row = element?.closest<HTMLElement>('.row[data-path]')
-          const destDir = row && row.dataset.dir === '1' ? row.dataset.path : undefined
-
-          if (!tabId) {
-            return
-          }
-
-          if (pane.dataset.side === 'remote') {
-            void uploadLocalPaths(tabId, event.payload.paths, destDir)
+          if (target.side === 'remote') {
+            void uploadLocalPaths(target.tabId, event.payload.paths, target.destDir)
           } else {
-            void copyLocalPaths(tabId, event.payload.paths, destDir)
+            void copyLocalPaths(target.tabId, event.payload.paths, target.destDir)
           }
         }
       })

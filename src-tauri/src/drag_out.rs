@@ -36,6 +36,7 @@ pub struct DeferredDownload {
 }
 
 pub struct DragJob {
+  pub owner_window: isize,
   pub paths: Vec<PathBuf>,
   pub allow_move: bool,
   pub allow_link: bool,
@@ -66,7 +67,7 @@ mod platform {
   use windows::core::{implement, w, BOOL, HRESULT};
   use windows::Win32::Foundation::{
     DRAGDROP_S_CANCEL, DRAGDROP_S_DROP, DRAGDROP_S_USEDEFAULTCURSORS, HGLOBAL, HWND, LPARAM,
-    LRESULT, S_OK, WPARAM,
+    LRESULT, POINT, S_OK, WPARAM,
   };
   use windows::Win32::System::Com::{
     IDataObject, DVASPECT_CONTENT, FORMATETC, STGMEDIUM, STGMEDIUM_0, TYMED_HGLOBAL,
@@ -81,9 +82,10 @@ mod platform {
   use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_ESCAPE};
   use windows::Win32::UI::Shell::{SHCreateDataObject, CFSTR_PREFERREDDROPEFFECT};
   use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DispatchMessageW, MsgWaitForMultipleObjectsEx, PeekMessageW,
-    PostMessageW, RegisterClassW, TranslateMessage, HWND_MESSAGE, MSG, MWMO_INPUTAVAILABLE,
-    PM_REMOVE, QS_ALLINPUT, WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WNDCLASSW,
+    CreateWindowExW, DefWindowProcW, DispatchMessageW, GetAncestor, GetCursorPos,
+    MsgWaitForMultipleObjectsEx, PeekMessageW, PostMessageW, RegisterClassW, TranslateMessage,
+    WindowFromPoint, GA_ROOT, HWND_MESSAGE, MSG, MWMO_INPUTAVAILABLE, PM_REMOVE, QS_ALLINPUT,
+    WINDOW_EX_STYLE, WINDOW_STYLE, WM_APP, WNDCLASSW,
   };
 
   const WM_START_DRAG: u32 = WM_APP + 0x51;
@@ -185,6 +187,7 @@ mod platform {
     }
     let failure = Arc::new(parking_lot::Mutex::new(None));
     let source: IDropSource = DropSource {
+      owner_window: job.owner_window,
       deferred: job.deferred,
       rendered: Cell::new(false),
       last_effect: Cell::new(DROPEFFECT_NONE),
@@ -250,6 +253,7 @@ mod platform {
 
   #[implement(IDropSource)]
   struct DropSource {
+    owner_window: isize,
     deferred: Option<DeferredDownload>,
     rendered: Cell<bool>,
     last_effect: Cell<DROPEFFECT>,
@@ -284,7 +288,7 @@ mod platform {
       if key_state.0 & MK_LBUTTON.0 != 0 {
         return S_OK;
       }
-      if self.last_effect.get() == DROPEFFECT_NONE {
+      if self.last_effect.get() == DROPEFFECT_NONE || cursor_over_window(self.owner_window) {
         return DRAGDROP_S_CANCEL;
       }
       self.render_before_drop()
@@ -332,6 +336,23 @@ mod platform {
         let _ = TranslateMessage(&message);
         DispatchMessageW(&message);
       }
+    }
+  }
+
+  fn cursor_over_window(owner: isize) -> bool {
+    if owner == 0 {
+      return false;
+    }
+    unsafe {
+      let mut point = POINT::default();
+      if GetCursorPos(&mut point).is_err() {
+        return false;
+      }
+      let under = WindowFromPoint(point);
+      if under.is_invalid() {
+        return false;
+      }
+      GetAncestor(under, GA_ROOT).0 as isize == owner
     }
   }
 

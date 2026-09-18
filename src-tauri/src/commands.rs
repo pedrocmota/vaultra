@@ -17,7 +17,7 @@ use crate::transfer::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tauri::State;
+use tauri::{Manager, State};
 
 pub struct AppState {
   pub sites: Arc<SiteStore>,
@@ -461,13 +461,27 @@ pub async fn clipboard_read_files() -> VResult<ClipboardFiles> {
     .map_err(|e| VError::Other(e.to_string()))?
 }
 
+fn main_window_handle(app: &tauri::AppHandle) -> isize {
+  app
+    .get_webview_window("main")
+    .and_then(|window| window.hwnd().ok())
+    .map(|hwnd| hwnd.0 as isize)
+    .unwrap_or(0)
+}
+
 #[tauri::command]
-pub async fn drag_out(state: App<'_>, request: DragOutRequest) -> VResult<DragOutResult> {
+pub async fn drag_out(
+  app: tauri::AppHandle,
+  state: App<'_>,
+  request: DragOutRequest,
+) -> VResult<DragOutResult> {
+  let owner_window = main_window_handle(&app);
   if request.downloads.is_empty() {
     if request.local_paths.is_empty() {
       return Err(VError::Other("nothing to drag".into()));
     }
     return drag_out::start(DragJob {
+      owner_window,
       paths: request.local_paths.into_iter().map(Into::into).collect(),
       allow_move: true,
       allow_link: true,
@@ -493,6 +507,7 @@ pub async fn drag_out(state: App<'_>, request: DragOutRequest) -> VResult<DragOu
     downloads.push(download);
   }
   drag_out::start(DragJob {
+    owner_window,
     paths,
     allow_move: true,
     allow_link: false,

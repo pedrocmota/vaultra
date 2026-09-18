@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {paneKeymap, type PaneCommand} from '@/keybindings'
 import {api} from '@/lib/api'
+import {createDropHighlighter, resolveDropTarget} from '@/lib/dropTarget'
 import {
   filterEntries,
   isDirLike,
@@ -294,43 +295,27 @@ export function Pane({tabId, side, style}: Props) {
 
   const onDragEntries = (event: React.MouseEvent, entries: Entry[]) => {
     const label = entries.length === 1 ? entries[0].name : t('status.items', {n: entries.length})
-    let lastPane: Element | null = null
+    const highlight = createDropHighlighter()
+    const acceptsDrop = (pane: HTMLElement) =>
+      pane.dataset.tab === tabId && pane.dataset.side !== side
     beginEntryDrag(
       event,
       label,
       (target) => {
-        lastPane?.classList.remove('drop-target')
-        const paneElement = target?.closest<HTMLElement>('.pane[data-side]')
+        highlight.clear()
+        const drop = resolveDropTarget(target)
 
-        if (!paneElement || paneElement.dataset.tab !== tabId) {
+        if (!drop || drop.tabId !== tabId || drop.side === side) {
           return
         }
 
-        const targetSide = paneElement.dataset.side as PaneSide
-        const row = target?.closest<HTMLElement>('.row[data-path]')
-        const destDir = row && row.dataset.dir === '1' ? row.dataset.path : undefined
-
-        if (targetSide === side) {
-          return
-        }
-
-        void transferEntries(tabId, side, entries, {destDir})
+        void transferEntries(tabId, side, entries, {destDir: drop.destDir})
       },
-      (target) => {
-        const list =
-          target?.closest<HTMLElement>('.pane[data-side]')?.querySelector('.filelist') ?? null
-
-        if (list !== lastPane) {
-          lastPane?.classList.remove('drop-target')
-
-          if (list && list.closest<HTMLElement>('.pane')?.dataset.side !== side) {
-            list.classList.add('drop-target')
-          }
-
-          lastPane = list
-        }
-      },
-      () => void dragOutEntries(tabId, side, entries)
+      (target) => highlight.update(target, acceptsDrop),
+      () => {
+        highlight.clear()
+        void dragOutEntries(tabId, side, entries)
+      }
     )
   }
 
